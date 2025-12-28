@@ -2,3 +2,9 @@ build
 .idea
 .vscode
 .DS_Store
+.qtcreator
+build
+.idea
+app/AppDir
+app/*.AppImage
+app/*.png

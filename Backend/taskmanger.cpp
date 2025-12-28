@@ -111,21 +111,28 @@ void TaskManger::editTask(int index, const QString& title, const QString& descri
 
     qInfo() << "[TaskManger]: editTask: " << index;
 
-    QString sqlCmd;
-    sqlCmd = QString("UPDATE tasks SET title = '%1', description = '%2' WHERE id = %3")
-                 .arg(title)
-                 .arg(description)
-                 .arg(record_map_[index].id);
+    QSqlQuery query(db_->database());
 
-    if(db_->updateDB(sqlCmd))
+    // 1. Prepare the statement with placeholders
+    query.prepare("UPDATE tasks SET title = :title, description = :desc WHERE id = :id");
+
+    // 2. Bind the actual values
+    query.bindValue(":title", title);
+    query.bindValue(":desc", description);
+    query.bindValue(":id", record_map_[index].id);
+
+    // 3. Execute the query
+    if(query.exec())
     {
         record_map_[index].data = title;
         setTaskDescription(description);
         qInfo() << "[TaskManger] editTask success to update database " << title;
-        qInfo() << "[TaskManger] des = " << description;
     }
     else
-        qWarning() << "[TaskManger] editTask failed to update database " << title;
+    {
+        qWarning() << "[TaskManger] editTask failed: " << query.lastError().text();
+    }
+
     emit layoutChanged();
 }
 

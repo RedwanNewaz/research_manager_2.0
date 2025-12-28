@@ -235,6 +235,7 @@ Popup {
                         onClicked: {
                             console.log("Cancel clicked")
                             noteView.close()
+                            noteTextArea.text = ""
                         }
                     }
                 }
