@@ -1,0 +1,7 @@
+module ProjectComponents
+TabView 2.0 TabView.qml
+TaskViewer 2.0 TaskViewer.qml
+CalendarView 2.0 CalendarView.qml
+DeadlineView 2.0 DeadlineView.qml
+CitationView 2.0 CitationView.qml
+LinkView 2.0 LinkView.qml

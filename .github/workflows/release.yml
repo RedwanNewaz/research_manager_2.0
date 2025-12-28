@@ -1,0 +1,433 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - 'main'
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v0.5.0)'
+        required: true
+        default: 'v0.5.0'
+
+env:
+  QT_VERSION: '6.10.1'
+  BUILD_TYPE: Release
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_mingw'
+          modules: 'qt5compat qtpdf qtshadertools qtcharts qtimageformats qtmultimedia'
+          tools: 'tools_mingw1310'
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G "MinGW Makefiles" `
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
+            -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }}" `
+            -DBUILD_TEST=OFF
+
+      - name: Build
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
+
+      - name: Deploy Qt dependencies (Windows)
+        run: |
+          New-Item -ItemType Directory -Force -Path deploy/ResearchManager
+          Copy-Item build/appResearchManager.exe deploy/ResearchManager/
+          Set-Location deploy/ResearchManager
+          windeployqt --qmldir "${{ github.workspace }}" --release appResearchManager.exe
+        shell: pwsh
+
+      - name: Create Windows Archive
+        run: |
+          cd deploy
+          7z a -tzip ../ResearchManager-Windows-x64.zip ResearchManager
+        shell: bash
+
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ResearchManager-Windows-x64
+          path: ResearchManager-Windows-x64.zip
+
+  build-linux:
+    runs-on: ubuntu-22.04
+    continue-on-error: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            libgl1-mesa-dev \
+            libglu1-mesa-dev \
+            libxkbcommon-x11-0 \
+            libxcb-icccm4 \
+            libxcb-image0 \
+            libxcb-keysyms1 \
+            libxcb-randr0 \
+            libxcb-render-util0 \
+            libxcb-xinerama0 \
+            libxcb-shape0 \
+            libxcb-cursor0 \
+            libxcb-xfixes0 \
+            libxcb-sync1 \
+            libxcb-shm0 \
+            libfuse2 \
+            libsqlite3-dev \
+            libssl-dev \
+            wget \
+            file \
+            imagemagick
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.6.3'
+          host: 'linux'
+          target: 'desktop'
+          arch: 'gcc_64'
+          modules: 'qt5compat qtpdf'
+          cache: true
+
+      - name: Verify Qt Installation
+        run: |
+          echo "Qt6_DIR: $Qt6_DIR"
+          QMAKE_PATH=$(which qmake6 2>/dev/null || which qmake 2>/dev/null || find $Qt6_DIR/../.. -name qmake -type f | head -1)
+          echo "qmake path: $QMAKE_PATH"
+          if [ -f "$QMAKE_PATH" ]; then
+            $QMAKE_PATH -v
+          fi
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }}" \
+            -DBUILD_TEST=OFF
+
+      - name: Build Application
+        run: |
+          cmake --build build --config ${{ env.BUILD_TYPE }} --parallel $(nproc)
+          ls -lh build/
+          file build/appResearchManager
+
+      - name: Download linuxdeploy tools
+        run: |
+          mkdir -p app
+          cd app
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy*.AppImage
+
+      - name: Prepare AppDir
+        run: |
+          mkdir -p app
+          cd app
+          rm -rf AppDir
+          mkdir -p AppDir/usr/bin
+          # Copy binary
+          cp ../build/appResearchManager AppDir/usr/bin/
+          # Prepare icon - CRITICAL: resize to 256x256 for AppImage validation
+          ICON_SRC="../ResearchManager/images/ResearchManager.png"
+          if [ -f "$ICON_SRC" ]; then
+            convert "$ICON_SRC" -resize 256x256 AppDir/appResearchManager.png
+            echo "Icon resized to 256x256"
+          else
+            echo "Warning: Icon not found, creating placeholder"
+            convert -size 256x256 xc:#4169E1 -pointsize 48 -fill white -gravity center \
+              -annotate +0+0 'RM' AppDir/appResearchManager.png
+          fi
+          # Create desktop entry
+          cat > AppDir/appResearchManager.desktop <<'EOF'
+          [Desktop Entry]
+          Type=Application
+          Name=Research Manager
+          Exec=appResearchManager
+          Icon=appResearchManager
+          Categories=Office;Education;
+          Comment=Research and project management tool
+          EOF
+          echo "AppDir prepared:"
+          ls -lh AppDir/
+
+      - name: Create AppImage
+        run: |
+          mkdir -p app
+          cd app
+          # Find qmake
+          QMAKE_PATH=$(which qmake6 2>/dev/null || which qmake 2>/dev/null || find $Qt6_DIR/../.. -name qmake -type f | head -1)
+          if [ -z "$QMAKE_PATH" ] || [ ! -f "$QMAKE_PATH" ]; then
+            echo "ERROR: qmake not found!"
+            exit 1
+          fi
+          export QMAKE="$QMAKE_PATH"
+          echo "Using QMAKE: $QMAKE"
+          # Set QML sources path for Qt plugin
+          export QML_SOURCES_PATHS="${{ github.workspace }}/ResearchManager"
+          # Remove all SQL drivers except SQLite
+          find AppDir/usr/plugins/sqldrivers/ -type f ! -name 'libqsqlite.so' -delete || true
+          # Only deploy required Qt plugins (including only SQLite for SQL)
+          export QT_SELECT_PLUGINS="platforms/libqxcb.so;platforms/libqoffscreen.so;platforms/libqminimal.so;imageformats/libqico.so;imageformats/libqjpeg.so;imageformats/libqgif.so;imageformats/libqpng.so;imageformats/libqsvg.so;sqldrivers/libqsqlite.so"
+          # Run linuxdeploy with Qt plugin and exclude unwanted SQL drivers
+          ./linuxdeploy-x86_64.AppImage \
+            --appdir AppDir \
+            --desktop-file AppDir/appResearchManager.desktop \
+            --icon-file AppDir/appResearchManager.png \
+            --plugin qt \
+            --output appimage \
+            --exclude-library "*libqsqloci*" \
+            --exclude-library "*libqsqlpsql*" \
+            --exclude-library "*libclntsh*" \
+            --exclude-library "*libqsqlmimer*" || {
+            echo "linuxdeploy with qt plugin failed, trying without qt plugin"
+            # Fallback: manually deploy only required plugins
+            QT_PLUGIN_DIR=$(find /opt/hostedtoolcache/Qt -path "*/plugins" -type d 2>/dev/null | head -1)
+            if [ -n "$QT_PLUGIN_DIR" ]; then
+              echo "Manually deploying Qt plugins from: $QT_PLUGIN_DIR"
+              mkdir -p AppDir/usr/plugins/platforms AppDir/usr/plugins/sqldrivers
+              cp "$QT_PLUGIN_DIR"/platforms/libqxcb.so AppDir/usr/plugins/platforms/ 2>/dev/null || true
+              cp "$QT_PLUGIN_DIR"/platforms/libqoffscreen.so AppDir/usr/plugins/platforms/ 2>/dev/null || true
+              cp "$QT_PLUGIN_DIR"/platforms/libqminimal.so AppDir/usr/plugins/platforms/ 2>/dev/null || true
+              cp "$QT_PLUGIN_DIR"/sqldrivers/libqsqlite.so AppDir/usr/plugins/sqldrivers/ 2>/dev/null || true
+            fi
+            ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage
+          }
+          # Find and rename the generated AppImage (exclude linuxdeploy tools)
+          OUTPUT_APPIMAGE=$(ls -1 *.AppImage 2>/dev/null | grep -v "linuxdeploy" | head -1)
+          if [ -n "$OUTPUT_APPIMAGE" ] && [ -f "$OUTPUT_APPIMAGE" ]; then
+            echo "AppImage created: $OUTPUT_APPIMAGE"
+            mv "$OUTPUT_APPIMAGE" ResearchManager-Linux-x86_64.AppImage
+            chmod +x ResearchManager-Linux-x86_64.AppImage
+            ls -lh ResearchManager-Linux-x86_64.AppImage
+            file ResearchManager-Linux-x86_64.AppImage
+          else
+            echo "ERROR: AppImage creation failed"
+            echo "Contents of app directory:"
+            ls -la
+            exit 1
+          fi
+
+      - name: Upload Linux AppImage Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ResearchManager-Linux-x86_64
+          path: app/ResearchManager-Linux-x86_64.AppImage
+          if-no-files-found: error
+
+  build-macos:
+    runs-on: macos-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Install Qt for x86_64
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: 'mac'
+          target: 'desktop'
+          arch: 'clang_64'
+          modules: 'qt5compat qtpdf qtshadertools qtcharts qtimageformats qtmultimedia'
+      - name: Configure CMake for x86_64
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }}" \
+            -DCMAKE_OSX_ARCHITECTURES="x86_64" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="10.15" \
+            -DBUILD_TEST=OFF
+            
+      - name: Build
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
+        
+      - name: Deploy Qt dependencies (macOS)
+        run: |
+          cd build
+          
+          # Verify app bundle exists
+          if [ -d "appResearchManager.app" ]; then
+            echo "App bundle found"
+            
+            # Create Resources directory if it doesn't exist
+            mkdir -p appResearchManager.app/Contents/Resources
+            
+            # Function to safely set or add plist values
+            set_plist_value() {
+              local key=$1
+              local type=$2
+              local value=$3
+              local plist="appResearchManager.app/Contents/Info.plist"
+              
+              if /usr/libexec/PlistBuddy -c "Print :${key}" "$plist" >/dev/null 2>&1; then
+                /usr/libexec/PlistBuddy -c "Set :${key} ${value}" "$plist"
+              else
+                /usr/libexec/PlistBuddy -c "Add :${key} ${type} ${value}" "$plist"
+              fi
+            }
+            
+            # Set Info.plist values
+            set_plist_value "CFBundleExecutable" "string" "appResearchManager"
+            set_plist_value "CFBundleIdentifier" "string" "com.airlabuno.ResearchManager"
+            set_plist_value "CFBundleName" "string" "Research Manager"
+            set_plist_value "CFBundleDisplayName" "string" "Research Manager"
+            set_plist_value "NSHighResolutionCapable" "bool" "true"
+            
+            # Set the app icon if available
+            if [ -f "${{ github.workspace }}/ResearchManager/images/ResearchManager.icns" ]; then
+              cp "${{ github.workspace }}/ResearchManager/images/ResearchManager.icns" appResearchManager.app/Contents/Resources/
+              set_plist_value "CFBundleIconFile" "string" "ResearchManager.icns"
+              echo "App icon copied successfully"
+            else
+              echo "Warning: App icon not found"
+            fi
+            
+            # Make executable actually executable
+            chmod +x appResearchManager.app/Contents/MacOS/appResearchManager
+            
+            # Deploy Qt dependencies
+            echo "Running macdeployqt..."
+            macdeployqt appResearchManager.app -qmldir="${{ github.workspace }}" -dmg -always-overwrite
+            
+            # Verify the app can launch
+            echo "Verifying app bundle structure:"
+            ls -la appResearchManager.app/Contents/MacOS/
+            echo -e "\nInfo.plist contents:"
+            /usr/libexec/PlistBuddy -c "Print" appResearchManager.app/Contents/Info.plist
+            
+            if [ -f "appResearchManager.dmg" ]; then
+              mv appResearchManager.dmg ../ResearchManager-macOS-x64.dmg
+              echo "DMG created successfully"
+            else
+              echo "ERROR: DMG file not created"
+              exit 1
+            fi
+          else
+            echo "ERROR: App bundle not created by CMake"
+            exit 1
+          fi
+          
+      - name: Upload macOS Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ResearchManager-macOS-x64
+          path: ResearchManager-macOS-x64.dmg
+
+  create-release:
+    needs: [build-windows, build-linux, build-macos]
+    runs-on: ubuntu-latest
+    if: always() && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/app-0.3' || github.ref == 'refs/heads/app-0.4')))
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          path: artifacts
+
+      - name: Display structure of downloaded files
+        run: ls -R artifacts
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=rolling-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: Research Manager ${{ steps.version.outputs.VERSION }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            artifacts/ResearchManager-Windows-x64/*.zip
+            artifacts/ResearchManager-Linux-x86_64/*.AppImage
+            artifacts/ResearchManager-macOS-x64/*.dmg
+          body: |
+            ## Research Manager ${{ steps.version.outputs.VERSION }}
+            
+            ### What's New
+            
+            #### Platform Improvements
+            - ✅ **macOS**: Fixed app bundle - now double-clickable from Finder
+            - ✅ **Linux**: Fixed file manager integration (Nemo, Nautilus, Dolphin, etc.)
+            - ✅ **All Platforms**: Fixed "Open File" to use default applications
+            - ✅ **All Platforms**: Fixed "Copy Path to Clipboard" functionality
+            - ✅ **All Platforms**: Fixed "Show in File Manager" to properly reveal files
+            
+            #### UI/UX Enhancements
+            - Improved button spacing and layout in Recent Projects view
+            - Better file context menu with platform-specific labels
+            - Enhanced file opening with AppleScript on macOS for reliability
+            
+            #### Build System
+            - Updated CMakeLists.txt for better Qt 6.10.1 compatibility
+            - Added Qt5Compat, QtPdf, QtShaderTools support
+            - Improved AppImage packaging for Linux
+            - Fixed macOS Info.plist configuration for proper app launching
+            
+            ---
+            
+            ### Downloads
+            - **Windows**: `ResearchManager-Windows-x64.zip`
+            - **Linux**: `ResearchManager-Linux-x86_64.AppImage`
+            - **macOS**: `ResearchManager-macOS-x64.dmg`
+            
+            ### Installation
+            
+            #### Windows
+            1. Download and extract `ResearchManager-Windows-x64.zip`
+            2. Run `appResearchManager.exe`
+            
+            #### Linux
+            1. Download `ResearchManager-Linux-x86_64.AppImage`
+            2. Make it executable: `chmod +x ResearchManager-Linux-x86_64.AppImage`
+            3. Run: `./ResearchManager-Linux-x86_64.AppImage`
+            
+            #### macOS
+            1. Download and open `ResearchManager-macOS-x64.dmg`
+            2. Drag the app to Applications folder
+            3. Double-click to launch (now works properly!)
+            
+            ### Known Issues
+            - None at this time
+            
+            ### System Requirements
+            - **Windows**: Windows 10 or later
+            - **Linux**: Ubuntu 20.04+ or equivalent (glibc 2.31+)
+            - **macOS**: macOS 10.15 (Catalina) or later
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
