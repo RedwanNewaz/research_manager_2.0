@@ -199,6 +199,7 @@ Rectangle {
                 onClicked: {
                     if(createProjectText.text !== "")
                     {
+                        console.log("[CreateProject]", createProjectText.text, combo.currentText)
                         tpModel.createProject(createProjectText.text, combo.currentText)
                         mainScreen.appCurrentPage = "RecentProjects.qml";
                         project.projectName = createProjectText.text;

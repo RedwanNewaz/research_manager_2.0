@@ -166,6 +166,127 @@ public:
         return -1;
 
     }
+
+
+    inline bool initializeDatabase() {
+
+        QSqlQuery query(db_);
+
+        // Create projects table first (referenced by other tables)
+        if (!query.exec(R"(
+            CREATE TABLE IF NOT EXISTS "projects" (
+                "id" INTEGER NOT NULL,
+                "name" VARCHAR NOT NULL,
+                "description" VARCHAR,
+                "category_id" INTEGER,
+                PRIMARY KEY("id")
+            )
+        )")) {
+            qDebug() << "Error creating projects table:" << query.lastError().text();
+            return false;
+        }
+
+        // Create categories table
+        if (!query.exec(R"(
+            CREATE TABLE IF NOT EXISTS "categories" (
+                "id" INTEGER,
+                "name" TEXT,
+                "year_id" INTEGER
+            )
+        )")) {
+            qDebug() << "Error creating categories table:" << query.lastError().text();
+            return false;
+        }
+
+        // Create calendars table
+        if (!query.exec(R"(
+            CREATE TABLE IF NOT EXISTS "calendars" (
+                "id" INTEGER NOT NULL,
+                "timestamp" DATETIME NOT NULL,
+                "event" VARCHAR(200) NOT NULL,
+                "description" TEXT,
+                "project_id" INTEGER NOT NULL,
+                PRIMARY KEY("id"),
+                FOREIGN KEY("project_id") REFERENCES "projects"("id")
+            )
+        )")) {
+            qDebug() << "Error creating calendars table:" << query.lastError().text();
+            return false;
+        }
+
+        // Create contacts table
+        if (!query.exec(R"(
+            CREATE TABLE IF NOT EXISTS "contacts" (
+                "id" INTEGER NOT NULL,
+                "name" VARCHAR(200) NOT NULL,
+                "affiliation" VARCHAR(200),
+                "website" VARCHAR(500),
+                "phone" VARCHAR(50),
+                "email" VARCHAR(200),
+                "zoom" VARCHAR(200),
+                "photo" VARCHAR(500),
+                "project_id" INTEGER NOT NULL,
+                PRIMARY KEY("id"),
+                FOREIGN KEY("project_id") REFERENCES "projects"("id")
+            )
+        )")) {
+            qDebug() << "Error creating contacts table:" << query.lastError().text();
+            return false;
+        }
+
+        // Create links table
+        if (!query.exec(R"(
+            CREATE TABLE IF NOT EXISTS "links" (
+                "id" INTEGER NOT NULL,
+                "url" VARCHAR(500) NOT NULL,
+                "website" VARCHAR(200),
+                "description" TEXT,
+                "project_id" INTEGER NOT NULL,
+                PRIMARY KEY("id"),
+                FOREIGN KEY("project_id") REFERENCES "projects"("id")
+            )
+        )")) {
+            qDebug() << "Error creating links table:" << query.lastError().text();
+            return false;
+        }
+
+        // Create references table
+        if (!query.exec(R"(
+            CREATE TABLE IF NOT EXISTS "references" (
+                "id" INTEGER NOT NULL,
+                "title" VARCHAR(300) NOT NULL,
+                "bibtex" TEXT,
+                "project_id" INTEGER NOT NULL,
+                PRIMARY KEY("id"),
+                FOREIGN KEY("project_id") REFERENCES "projects"("id")
+            )
+        )")) {
+            qDebug() << "Error creating references table:" << query.lastError().text();
+            return false;
+        }
+
+        // Create tasks table
+        if (!query.exec(R"(
+            CREATE TABLE IF NOT EXISTS "tasks" (
+                "id" INTEGER NOT NULL,
+                "title" VARCHAR(200) NOT NULL,
+                "description" TEXT,
+                "timestamp" DATETIME,
+                "pending" BOOLEAN,
+                "project_id" INTEGER NOT NULL,
+                PRIMARY KEY("id"),
+                FOREIGN KEY("project_id") REFERENCES "projects"("id")
+            )
+        )")) {
+            qDebug() << "Error creating tasks table:" << query.lastError().text();
+            return false;
+        }
+
+        qDebug() << "Database initialized successfully!";
+        return true;
+    }
+
+
 private:
     QSqlDatabase db_;
 };
