@@ -5,7 +5,7 @@ set -e
 # CONFIG
 # ----------------------------
 APPNAME=${1:-appResearchManager}           # The actual binary name
-BUILD_DIR=../build
+BUILD_DIR=../build/Desktop_Qt_6_10_1-Debug
 APPDIR=AppDir
 
 # ----------------------------

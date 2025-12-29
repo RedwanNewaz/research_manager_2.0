@@ -19,6 +19,7 @@ namespace project{
         explicit DeadlineModel(DbmPtr db, QObject *parent = nullptr);
         Q_INVOKABLE void projectIdChanged(int id);
         Q_INVOKABLE void deleteRow(int id);
+        Q_INVOKABLE QString getEventCountdown(int indx);
 
     signals:
 
@@ -27,8 +28,16 @@ namespace project{
     private:
         DbmPtr db_;
         int m_projectId;
-        mutable QVector<QStringList> data_;
-        mutable QHash<QString, int> id_map_;
+
+        struct EventData{
+            int index;
+            int id;
+            QDate date;
+            QString name;
+        };
+
+        mutable QMap<int, EventData> event_map_;
+
 
         // QAbstractItemModel interface
         QString m_deadlineTxt;

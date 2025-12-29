@@ -63,7 +63,7 @@ Popup {
             anchors.topMargin: 35
             spacing: 20
 
-            // Title with icon
+            // Title with icon and buttons
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 12
@@ -92,6 +92,102 @@ Popup {
                     color: "#2d3748"
                     Layout.fillWidth: true
                 }
+
+                // Cancel Button
+                Rectangle {
+                    id: cancelButton
+                    Layout.preferredWidth: 100
+                    Layout.preferredHeight: 40
+                    color: cancelMouseArea.pressed ? "#e2e8f0" : (cancelMouseArea.containsMouse ? "#edf2f7" : "#f7fafc")
+                    border.color: "#cbd5e0"
+                    border.width: 2
+                    radius: 10
+
+                    Behavior on color {
+                        ColorAnimation { duration: 150 }
+                    }
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Cancel"
+                        font.pixelSize: 14
+                        font.weight: Font.Medium
+                        color: "#4a5568"
+                    }
+
+                    MouseArea {
+                        id: cancelMouseArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+
+                        onClicked: {
+                            console.log("Cancel clicked")
+                            noteView.close()
+                        }
+                    }
+                }
+
+                // Save Button
+                Rectangle {
+                    id: saveButton
+                    Layout.preferredWidth: 110
+                    Layout.preferredHeight: 40
+                    radius: 10
+                    scale: saveMouseArea.pressed ? 0.95 : 1.0
+
+                    Behavior on scale {
+                        NumberAnimation { duration: 100 }
+                    }
+
+                    gradient: Gradient {
+                        GradientStop {
+                            position: 0.0
+                            color: saveMouseArea.pressed ? "#5568d3" : (saveMouseArea.containsMouse ? "#7c8eef" : "#667eea")
+                        }
+                        GradientStop {
+                            position: 1.0
+                            color: saveMouseArea.pressed ? "#6453a1" : (saveMouseArea.containsMouse ? "#8a6bb8" : "#764ba2")
+                        }
+                    }
+
+                    layer.enabled: true
+                    layer.effect: MultiEffect {
+                        shadowEnabled: true
+                        shadowColor: "#30667eea"
+                        shadowBlur: 0.3
+                        shadowHorizontalOffset: 0
+                        shadowVerticalOffset: 4
+                    }
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Save Note"
+                        font.pixelSize: 14
+                        font.weight: Font.Medium
+                        color: "white"
+                    }
+
+                    MouseArea {
+                        id: saveMouseArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+
+                        onClicked: {
+                            console.log("Save clicked for task index:", noteView.taskIndex)
+                            console.log("Task title:", taskTitleInput.text)
+                            console.log("Note content:", noteTextArea.text)
+
+                            // Save the edited task title
+                            if (taskTitleInput.text.trim() !== "") {
+                                task.editTask(task.taskIndex, taskTitleInput.text, noteTextArea.text)
+                            }
+
+                            noteView.close()
+                        }
+                    }
+                }
             }
 
             // Editable Task Title
@@ -114,8 +210,8 @@ Popup {
 
                     text:  task.taskTitle
 
-                    font.pixelSize: 12
-                    font.styleName: "Regular"
+                    font.pixelSize: 16
+                    font.styleName: "Bold"
                     color: "#2d3748"
                     verticalAlignment: Text.AlignVCenter
                     horizontalAlignment: Text.AlignLeft
@@ -155,7 +251,7 @@ Popup {
 
                     TextArea {
                         id: noteTextArea
-                        width: parent.width  // ADD THIS - explicitly set width
+                        width: parent.width
                         placeholderText: "Start typing your note..."
                         font.pixelSize: 16
                         font.family: "Segoe UI"
@@ -193,113 +289,6 @@ Popup {
                 font.pixelSize: 12
                 color: "#718096"
                 Layout.alignment: Qt.AlignRight
-            }
-
-            // Button Row
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 15
-
-                Item {
-                    Layout.fillWidth: true
-                }
-
-                // Cancel Button using Rectangle + MouseArea
-                Rectangle {
-                    id: cancelButton
-                    Layout.preferredWidth: 120
-                    Layout.preferredHeight: 45
-                    color: cancelMouseArea.pressed ? "#e2e8f0" : (cancelMouseArea.containsMouse ? "#edf2f7" : "#f7fafc")
-                    border.color: "#cbd5e0"
-                    border.width: 2
-                    radius: 10
-
-                    Behavior on color {
-                        ColorAnimation { duration: 150 }
-                    }
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "Cancel"
-                        font.pixelSize: 15
-                        font.weight: Font.Medium
-                        color: "#4a5568"
-                    }
-
-                    MouseArea {
-                        id: cancelMouseArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-
-                        onClicked: {
-                            console.log("Cancel clicked")
-                            noteView.close()
-                            // noteTextArea.text = ""
-                        }
-                    }
-                }
-
-                // Save Button using Rectangle + MouseArea
-                Rectangle {
-                    id: saveButton
-                    Layout.preferredWidth: 130
-                    Layout.preferredHeight: 45
-                    radius: 10
-                    scale: saveMouseArea.pressed ? 0.95 : 1.0
-
-                    Behavior on scale {
-                        NumberAnimation { duration: 100 }
-                    }
-
-                    gradient: Gradient {
-                        GradientStop {
-                            position: 0.0
-                            color: saveMouseArea.pressed ? "#5568d3" : (saveMouseArea.containsMouse ? "#7c8eef" : "#667eea")
-                        }
-                        GradientStop {
-                            position: 1.0
-                            color: saveMouseArea.pressed ? "#6453a1" : (saveMouseArea.containsMouse ? "#8a6bb8" : "#764ba2")
-                        }
-                    }
-
-                    layer.enabled: true
-                    layer.effect: MultiEffect {
-                        shadowEnabled: true
-                        shadowColor: "#30667eea"
-                        shadowBlur: 0.3
-                        shadowHorizontalOffset: 0
-                        shadowVerticalOffset: 4
-                    }
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "Save Note"
-                        font.pixelSize: 15
-                        font.weight: Font.Medium
-                        color: "white"
-                    }
-
-                    MouseArea {
-                        id: saveMouseArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-
-                        onClicked: {
-                            console.log("Save clicked for task index:", noteView.taskIndex)
-                            console.log("Task title:", taskTitleInput.text)
-                            console.log("Note content:", noteTextArea.text)
-
-                            // Save the edited task title
-                            if (taskTitleInput.text.trim() !== "") {
-                                task.editTask(task.taskIndex, taskTitleInput.text, noteTextArea.text)
-                            }
-
-                            noteView.close()
-                        }
-                    }
-                }
             }
         }
     }

@@ -8,9 +8,21 @@ ColumnLayout {
 
     /* ---------------- Top Spacer ---------------- */
     Rectangle {
+        id: rectangle
         Layout.fillWidth: true
         Layout.preferredHeight: parent.height / 4
         color: "#181818"
+        Label {
+            id: deadlineLabel
+            text: "Press on event text"
+            font.pixelSize: 20
+            font.bold: true
+            font.weight: Font.DemiBold
+            color: "#2d3748"
+            // Layout.fillWidth: true
+            anchors.fill: parent
+            wrapMode: Text.WordWrap
+        }
     }
 
     /* ---------------- Input Row ---------------- */
@@ -101,10 +113,21 @@ ColumnLayout {
 
                     onPressed: (mouse) => {
                         if (mouse.button === Qt.RightButton) {
-                            tableView.tableRowIndex = index
+                            tableView.tableRowIndex = row
                             delMenu.popup(mouse.scenePosition)
                         }
+                        else{
+                            deadlineLabel.text = dlModel.getEventCountdown(row)
+                            deadlineLabel.color = "#206ced"
+
+                        }
                     }
+
+                    onExited: {
+                        deadlineLabel.text = "Press on event text";
+                        deadlineLabel.color = "#2d3748"
+                    }
+
                 }
             }
         }

@@ -19,9 +19,10 @@ void DeadlineModel::projectIdChanged(int id)
 
 void DeadlineModel::deleteRow(int id)
 {
-    qInfo() << "[DeadlineModel] delete " << data_[id];
-    auto token = data_[id].back();
-    auto id_ = id_map_[token];
+    if(!event_map_.contains(id))
+        return;
+
+    int id_ = event_map_[id].id;
     QString sqlCmd= QString("DELETE FROM calendars WHERE id = %1").arg(id_);
     if(db_->updateDB(sqlCmd))
     {
@@ -33,34 +34,56 @@ void DeadlineModel::deleteRow(int id)
     emit layoutChanged();
 }
 
+QString DeadlineModel::getEventCountdown(int indx)
+{
+    if(!event_map_.contains(indx))
+        return "event not found";
+    auto event = event_map_[indx];
+
+    QDate currentDate = QDate::currentDate();
+    auto eventDate = event.date;
+    int daysDifference = currentDate.daysTo(eventDate);
+
+    if (daysDifference < 0)
+        return  QString("[Event] %1 happened %2 days ago")
+                .arg(event.name)
+                .arg(abs(daysDifference));
+
+    return QString("[Event] %1 in %2 days")
+        .arg(event.name)
+        .arg(daysDifference);
+
+}
+
 int DeadlineModel::rowCount(const QModelIndex &parent) const
 {
     if(m_projectId < 0) return 0;
 
-    QString sqlCmd= QString("SELECT timestamp, event, id FROM calendars WHERE project_id = %1").arg(m_projectId);
+    QString sqlCmd= QString("SELECT id, timestamp, event FROM calendars WHERE project_id = %1").arg(m_projectId);
     auto results = db_->queryRow(sqlCmd);
-    data_.clear();
-    id_map_.clear();
+    event_map_.clear();
+    int index = 0;
     for(int i =0; i < results.size(); i+=3)
     {
         int j = i + 1;
         int k = i + 2;
 
+        EventData event;
+        event.index = index;
+        event.id = results[i].toInt();
+        event.date = QDate::fromString(results[j], Qt::ISODate);
+        event.name = results[k];
+        event_map_[index] = event;
 
-        QStringList item;
-        item << results[i].split(" ").front() << results[j];
-        data_.append(item);
-
-        int id_ = results[k].toInt();
-        id_map_[results[j]] = id_;
+        index++;
     }
     // qInfo() << "[DeadlineModel] data " << data_;
-    return data_.size();
+    return event_map_.size();
 }
 
 int DeadlineModel::columnCount(const QModelIndex &parent) const
 {
-    return (data_.isEmpty()) ? 0 : 2;
+    return (event_map_.isEmpty()) ? 0 : 2;
 }
 
 QVariant DeadlineModel::data(const QModelIndex &index, int role) const
@@ -68,12 +91,22 @@ QVariant DeadlineModel::data(const QModelIndex &index, int role) const
     if (!index.isValid() || m_projectId < 0)
         return QVariant();
 
-    if(role != Qt::DisplayRole)
-        return QVariant();
-
     int row = index.row();
     int col = index.column();
-    return data_[row][col];
+    if(role != Qt::DisplayRole || !event_map_.contains(row))
+        return QVariant();
+
+    auto event = event_map_[row];
+
+    switch (col) {
+    case 1:
+        return event.name;
+    default:
+        return event.date.toString("MM/dd/yyyy");
+    }
+
+
+    return QVariant();
 }
 
 QHash<int, QByteArray> DeadlineModel::roleNames() const
