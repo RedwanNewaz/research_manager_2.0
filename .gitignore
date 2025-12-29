@@ -8,3 +8,5 @@ build
 app/AppDir
 app/*.AppImage
 app/*.png
+app/build
+*.user

@@ -38,7 +38,10 @@ endif()
 # Qt Setup
 # ==============================================================================
 qt_standard_project_setup()
-
+# Force SQLite only for QtSql
+set(QT_FEATURE_sql_mysql OFF)
+set(QT_FEATURE_sql_psql OFF)
+set(QT_FEATURE_sql_mimer OFF)
 # ==============================================================================
 # Main Application Executable
 # ==============================================================================

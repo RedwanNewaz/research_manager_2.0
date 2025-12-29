@@ -113,12 +113,38 @@ if [ ! -f linuxdeploy-plugin-qt-x86_64.AppImage ]; then
 fi
 
 # ----------------------------
-# 5. Run linuxdeploy + Qt plugin
+# 5. Temporarily hide problematic SQL drivers
+# ----------------------------
+echo "==> Backing up problematic SQL drivers"
+if [ -x /home/airlab/Qt/6.10.1/gcc_64/bin/qmake ]; then
+    export QMAKE=/home/airlab/Qt/6.10.1/gcc_64/bin/qmake
+    QT_PLUGINS_DIR=/home/airlab/Qt/6.10.1/gcc_64/plugins
+elif [ -x /home/airlab/Qt/6.10.1/clang_64/bin/qmake ]; then
+    export QMAKE=/home/airlab/Qt/6.10.1/clang_64/bin/qmake
+    QT_PLUGINS_DIR=/home/airlab/Qt/6.10.1/clang_64/plugins
+else
+    echo "ERROR: qmake not found for Qt 6.10.1" >&2
+    exit 1
+fi
+
+# Backup problematic drivers temporarily
+BACKUP_DIR=$(mktemp -d)
+echo "==> Temporarily moving problematic drivers to $BACKUP_DIR"
+if [ -d "$QT_PLUGINS_DIR/sqldrivers" ]; then
+    # Move all drivers except sqlite to backup
+    for driver in "$QT_PLUGINS_DIR/sqldrivers"/libqsql*.so; do
+        if [[ ! "$driver" =~ "sqlite" ]]; then
+            mv "$driver" "$BACKUP_DIR/" 2>/dev/null || true
+        fi
+    done
+fi
+
+# ----------------------------
+# 6. Run linuxdeploy + Qt plugin
 # ----------------------------
 echo "==> Running linuxdeploy"
-
+export QT_QPA_PLATFORM=offscreen
 export QML_SOURCES_PATHS=../ResearchManager/
-export QMAKE=/home/redwan/Qt/6.10.1/gcc_64/bin/qmake
 
 ./linuxdeploy-x86_64.AppImage \
     --appdir $APPDIR \
@@ -126,6 +152,13 @@ export QMAKE=/home/redwan/Qt/6.10.1/gcc_64/bin/qmake
     --icon-file $APPDIR/$APPNAME.png \
     --plugin qt \
     --output appimage
+
+# Restore backed up drivers
+echo "==> Restoring SQL drivers"
+if [ -d "$BACKUP_DIR" ] && [ "$(ls -A $BACKUP_DIR)" ]; then
+    mv "$BACKUP_DIR"/*.so "$QT_PLUGINS_DIR/sqldrivers/" 2>/dev/null || true
+fi
+rm -rf "$BACKUP_DIR"
 
 echo "==> AppImage created successfully!"
 ls -lh ./*.AppImage

@@ -1,4 +1,5 @@
 #include <QGuiApplication>
+#include <QSqlDatabase>
 #include "Backend/applicationmanager.h"
 
 /**
@@ -14,6 +15,8 @@
 int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
+
+    QSqlDatabase::removeDatabase("QSQLMIMER");
     
     ApplicationManager appManager(&app);
     
