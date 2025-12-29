@@ -124,15 +124,26 @@ void LinkViewer::addLink(const QString &rlink)
 
     qInfo() << "[LinkViewer]: website =" << website;
 
-    // 1. Define the SQL with placeholders (?)
-    QString sqlCmd = QString("INSERT INTO links (url, website, description, project_id) VALUES ('%1', '%2', '%3', %4)")
-                    .arg(link)
-                    .arg(website)
-                    .arg(safeDescription)
-                    .arg(m_projectId);
+    // // 1. Define the SQL with placeholders (?)
+    // QString sqlCmd = QString("INSERT INTO links (url, website, description, project_id) VALUES ('%1', '%2', '%3', %4)")
+    //                 .arg(link)
+    //                 .arg(website)
+    //                 .arg(safeDescription)
+    //                 .arg(m_projectId);
 
-    // 4. Execute (Assuming your db_ helper can accept a QSqlQuery or just use query.exec())
-    db_->updateDB(sqlCmd);
+    // // 4. Execute (Assuming your db_ helper can accept a QSqlQuery or just use query.exec())
+    // db_->updateDB(sqlCmd);
+
+    auto query = db_->getBinder(
+        "INSERT INTO links (url, website, description, project_id) "
+        "VALUES (:url, :web, :desc, :pid)"
+        );
+
+    query.bindValue(":url", link);
+    query.bindValue(":web", website);
+    query.bindValue(":desc", safeDescription);
+    query.bindValue(":pid", m_projectId);
+    query.exec();
 
     emit layoutChanged();
 }
@@ -145,7 +156,7 @@ void LinkViewer::deleteLinks()
             continue;
 
         QString sqlCmd = QString("DELETE FROM links WHERE id = %1").arg(web.id);
-        if(db_->updateDB(sqlCmd))
+        if(db_->deleteItem(sqlCmd))
         {
             qInfo() << "[TaskManger] success ";
         }

@@ -106,16 +106,28 @@ bool WorkspaceModel::setData(const QModelIndex &index, const QVariant &value, in
     QString idColumn = headers_.at(0);
     QString idValue = tableData_.at(index.row()).at(0);
 
-    QString sqlCmd = QString("UPDATE %1 SET %2 = '%3' WHERE %4 = '%5'")
-                         .arg(tableName)
-                         .arg(columnName)
-                         .arg(value.toString().replace("'", "''"))  // Escape single quotes
-                         .arg(idColumn)
-                         .arg(idValue);
+    // QString sqlCmd = QString("UPDATE %1 SET %2 = '%3' WHERE %4 = '%5'")
+    //                      .arg(tableName)
+    //                      .arg(columnName)
+    //                      .arg(value.toString().replace("'", "''"))  // Escape single quotes
+    //                      .arg(idColumn)
+    //                      .arg(idValue);
 
-    // qInfo() << "[WorkspaceModel] SQL:" << sqlCmd;
+    // // qInfo() << "[WorkspaceModel] SQL:" << sqlCmd;
 
-    bool success = db_->updateDB(sqlCmd);
+    // bool success = db_->updateDB(sqlCmd);
+
+    auto cmd = QString("UPDATE %1 SET %2 = :val WHERE %3 = :id")
+               .arg(tableName)
+               .arg(columnName)
+               .arg(idColumn);
+
+    auto query = db_->getBinder(cmd);
+    query.bindValue(":val", value.toString());
+    query.bindValue(":id", idValue);
+    bool success = query.exec();
+
+
     tableData_[index.row()][index.column()] = value.toString();
 
     if (success) {
@@ -162,24 +174,37 @@ bool WorkspaceModel::createWorkspace(const QVariantMap &data)
 
     // --- 2. Construct the SQL Command using QString::arg() ---
 
-    QString sqlCmd = QString(
-                         "INSERT INTO Workspace (name, database, year, workspace, icon) "
-                         "VALUES ('%1', '%2', %3, '%4', '%5')"
-                         )
-                         .arg(name)
-                         .arg(database)
-                         .arg(year)
-                         .arg(workspace)
-                         .arg(icon);
+    // QString sqlCmd = QString(
+    //                      "INSERT INTO Workspace (name, database, year, workspace, icon) "
+    //                      "VALUES ('%1', '%2', %3, '%4', '%5')"
+    //                      )
+    //                      .arg(name)
+    //                      .arg(database)
+    //                      .arg(year)
+    //                      .arg(workspace)
+    //                      .arg(icon);
 
-    if(db_->updateDB(sqlCmd))
-    {
-        qInfo() << "[WorkspaceModel] create Workspace success ";
-        return true;
-    }
+    // if(db_->updateDB(sqlCmd))
+    // {
+    //     qInfo() << "[WorkspaceModel] create Workspace success ";
+    //     return true;
+    // }
 
-    qInfo() << sqlCmd;
-    return false;
+    // qInfo() << sqlCmd;
+    // return false;
+
+    auto query = db_->getBinder(
+        "INSERT INTO Workspace (name, database, year, workspace, icon) "
+        "VALUES (:name, :database, :year, :workspace, :icon)"
+        );
+
+    query.bindValue(":name", name);
+    query.bindValue(":database", database);
+    query.bindValue(":year", year);
+    query.bindValue(":workspace", workspace);
+    query.bindValue(":icon", icon);
+
+    return query.exec();
 
 }
 
@@ -197,51 +222,54 @@ bool WorkspaceModel::updateWorkspace(const QVariantMap &data)
 
     if(!result.isEmpty() && result[0].toInt() > 0)
     {
-        // Workspace exists, update it
-        QString sqlCmd = QString(
-                             "UPDATE Workspace SET database = '%1', year = %2, workspace = '%3', icon = '%4' "
-                             "WHERE name = '%5'"
-                             )
-                             .arg(database)
-                             .arg(year)
-                             .arg(workspace)
-                             .arg(icon)
-                             .arg(name);
+        // // Workspace exists, update it
+        // QString sqlCmd = QString(
+        //                      "UPDATE Workspace SET database = '%1', year = %2, workspace = '%3', icon = '%4' "
+        //                      "WHERE name = '%5'"
+        //                      )
+        //                      .arg(database)
+        //                      .arg(year)
+        //                      .arg(workspace)
+        //                      .arg(icon)
+        //                      .arg(name);
 
-        if(db_->updateDB(sqlCmd))
-        {
-            qInfo() << "[WorkspaceModel] Workspace updated successfully";
-            return true;
-        }
-        else
-        {
-            qWarning() << "[WorkspaceModel] Failed to update workspace";
-            return false;
-        }
+        // if(db_->updateDB(sqlCmd))
+        // {
+        //     qInfo() << "[WorkspaceModel] Workspace updated successfully";
+        //     return true;
+        // }
+        // else
+        // {
+        //     qWarning() << "[WorkspaceModel] Failed to update workspace";
+        //     return false;
+        // }
+
+        auto query = db_->getBinder(
+            "UPDATE Workspace SET (name, database, year, workspace, icon) "
+            "VALUES (:name, :database, :year, :workspace, :icon)"
+            );
+
+        query.bindValue(":name", name);
+        query.bindValue(":database", database);
+        query.bindValue(":year", year);
+        query.bindValue(":workspace", workspace);
+        query.bindValue(":icon", icon);
+        return query.exec();
     }
     else
     {
         // Workspace does not exist, insert it
-        QString sqlCmd = QString(
-                             "INSERT INTO Workspace (name, database, year, workspace, icon) "
-                             "VALUES ('%1', '%2', %3, '%4', '%5')"
-                             )
-                             .arg(name)
-                             .arg(database)
-                             .arg(year)
-                             .arg(workspace)
-                             .arg(icon);
+        auto query = db_->getBinder(
+            "INSERT INTO Workspace (name, database, year, workspace, icon) "
+            "VALUES (:name, :database, :year, :workspace, :icon)"
+            );
 
-        if(db_->updateDB(sqlCmd))
-        {
-            qInfo() << "[WorkspaceModel] Workspace inserted successfully";
-            return true;
-        }
-        else
-        {
-            qWarning() << "[WorkspaceModel] Failed to insert workspace";
-            return false;
-        }
+        query.bindValue(":name", name);
+        query.bindValue(":database", database);
+        query.bindValue(":year", year);
+        query.bindValue(":workspace", workspace);
+        query.bindValue(":icon", icon);
+        return query.exec();
     }
 }
 
@@ -264,7 +292,7 @@ bool WorkspaceModel::deleteWorkspace(int row)
     qInfo() << "[WorkspaceModel] Deleting workspace with SQL:" << sqlCmd;
 
     beginRemoveRows(QModelIndex(), row, row);
-    bool success = db_->updateDB(sqlCmd);
+    bool success = db_->deleteItem(sqlCmd);
 
     if (success) {
         tableData_.removeAt(row);

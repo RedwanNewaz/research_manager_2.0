@@ -120,7 +120,23 @@ public:
     const QSqlDatabase& database() const { return db_; }
     QSqlDatabase& database() { return db_; }
     QString connectionName() const { return db_.connectionName(); }
-    bool updateDB(const QString& sqlCmd)
+
+
+
+
+
+    bool createTable(const QString& sqlCmd)
+    {
+        QSqlQuery query(db_);
+
+        if (!query.exec(sqlCmd)) {
+            qWarning() << "Failed to create project table:" << query.lastError().text();
+            return false;
+        }
+        return true;
+    }
+
+    bool deleteItem(const QString& sqlCmd)
     {
         QSqlQuery query(db_);
 
@@ -130,16 +146,6 @@ public:
         }
         return true;
     }
-
-    // bool updateDB(QSqlQuery& query)
-    // {
-
-    //     if (!query.exec()) {
-    //         qWarning() << "Failed to update project description:" << query.lastError().text();
-    //         return false;
-    //     }
-    //     return true;
-    // }
 
 
 

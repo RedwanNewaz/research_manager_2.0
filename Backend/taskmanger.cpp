@@ -56,28 +56,28 @@ QHash<int, QByteArray> TaskManger::roleNames() const
 
 void TaskManger::addTask(const QString &text)
 {
-    qInfo() << "[TaskManger]: addTask " << text;
-    auto escapeAndQuote= [](const QString &data) {
-        // 1. Escape: Replace single quotes with two single quotes for SQL safety
-        QString escaped = data;
-        escaped.replace("'", "''");
+    // qInfo() << "[TaskManger]: addTask " << text;
+    // auto escapeAndQuote= [](const QString &data) {
+    //     // 1. Escape: Replace single quotes with two single quotes for SQL safety
+    //     QString escaped = data;
+    //     escaped.replace("'", "''");
 
-        // 2. Quote: Enclose the escaped string in single quotes
-        return QString("'%1'").arg(escaped);
-    };
+    //     // 2. Quote: Enclose the escaped string in single quotes
+    //     return QString("'%1'").arg(escaped);
+    // };
 
 
     // --- 1. Prepare Data for Insertion ---
 
     // a. Title (Quoted and escaped)
-    QString safeTitle = escapeAndQuote(text);
+    // QString safeTitle = escapeAndQuote(text);
 
     // b. Description (NULL/empty string, quoted)
-    QString safeDescription = "''"; // Represents an empty string for the TEXT column
+    // QString safeDescription = "''"; // Represents an empty string for the TEXT column
 
     // c. Timestamp (Format as ISO string, quoted)
     // The format must be compatible with the DATETIME column type.
-    QString timestampStr = escapeAndQuote(QDateTime::currentDateTime().toString(Qt::ISODate));
+    QString timestampStr = QDateTime::currentDateTime().toString(Qt::ISODate);
 
     // d. Pending and Project ID (Integers, no quotes needed)
     int pending = 1;
@@ -85,23 +85,37 @@ void TaskManger::addTask(const QString &text)
 
     // --- 2. Construct the SQL Command using QString::arg() ---
 
-    QString sqlCmd = QString(
-                         "INSERT INTO tasks (title, description, timestamp, pending, project_id) "
-                         "VALUES (%1, %2, %3, %4, %5)"
-                         )
-                         .arg(safeTitle)         // %1: title (quoted and escaped)
-                         .arg(safeDescription)   // %2: description (quoted and escaped string)
-                         .arg(timestampStr)      // %3: timestamp (quoted ISO date string)
-                         .arg(pending)           // %4: pending (integer)
-                         .arg(projectId);        // %5: project_id (integer)
+    // QString sqlCmd = QString(
+    //                      "INSERT INTO tasks (title, description, timestamp, pending, project_id) "
+    //                      "VALUES (%1, %2, %3, %4, %5)"
+    //                      )
+    //                      .arg(safeTitle)         // %1: title (quoted and escaped)
+    //                      .arg(safeDescription)   // %2: description (quoted and escaped string)
+    //                      .arg(timestampStr)      // %3: timestamp (quoted ISO date string)
+    //                      .arg(pending)           // %4: pending (integer)
+    //                      .arg(projectId);        // %5: project_id (integer)
 
-    if(db_->updateDB(sqlCmd))
-    {
-        qInfo() << "[TaskManger] success ";
-    }
-    else{
-        qInfo() << sqlCmd;
-    }
+    // if(db_->updateDB(sqlCmd))
+    // {
+    //     qInfo() << "[TaskManger] success ";
+    // }
+    // else{
+    //     qInfo() << sqlCmd;
+    // }
+
+    auto query = db_->getBinder(
+        "INSERT INTO tasks (title, description, timestamp, pending, project_id) "
+        "VALUES (:title, :desc, :time, :pending, :pid)"
+        );
+
+    query.bindValue(":title", text);
+    query.bindValue(":desc", text);
+    query.bindValue(":time", timestampStr);
+    query.bindValue(":pending", pending);
+    query.bindValue(":pid", projectId);
+    query.exec();
+
+
     emit layoutChanged();
 }
 
@@ -142,7 +156,7 @@ void TaskManger::deleteTasks()
             continue;
         qInfo() << "[TaskManger]: deleteTask " << record.index;
         QString sqlCmd = QString("DELETE FROM tasks WHERE id = %1").arg(record.id);
-        db_->updateDB(sqlCmd);
+        db_->deleteItem(sqlCmd);
     }
 
     emit layoutChanged();

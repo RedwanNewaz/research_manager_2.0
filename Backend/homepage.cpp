@@ -79,7 +79,7 @@ namespace homepage{
     {
         qInfo() << "[ProjectView]: deleting  project = " << projectName;
         QString sqlCmd= QString("DELETE FROM projects WHERE name = '%1'").arg(projectName);
-        if(db_->updateDB(sqlCmd))
+        if(db_->deleteItem(sqlCmd))
         {
             qInfo() << "[DeadlineModel] success ";
         }

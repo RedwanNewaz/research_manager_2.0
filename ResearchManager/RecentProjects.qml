@@ -33,30 +33,43 @@ Item {
                 color: "#282828"
                 anchors.right : folder_bg.left
 
-                TextEdit {
-                    id: taskTextInput
-                    x: 50
+                Rectangle{
+                    x: 77
                     y: 37
-                    width: 365
-                    height: 65
-                    color: "#d6ffffff"
-                    // text: qsTr("TypeHere")
-                    font.pixelSize: 16
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    font.styleName: "Italic"
-                    property string placeholderText: "Add task here..."
-                    selectByMouse: true
-                    wrapMode: Text.WordWrap
-                    Text {
-                        text: taskTextInput.placeholderText
-                        font.styleName: "Italic"
-                        font.pointSize: 16
+                    width: leftbar.width - 85 //365
+                    height: 85
+                    color: "#3c3c3c"
+                    border.color: "#555555"
+                    border.width: 1
+
+                    TextEdit {
+                        id: taskTextInput
+                        anchors.fill: parent
+
+
+
                         color: "#d6ffffff"
-                        visible: !taskTextInput.text && !taskTextInput.activeFocus
-                        anchors.centerIn: parent
+                        // text: qsTr("TypeHere")
+                        font.pixelSize: 16
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        font.styleName: "Italic"
+                        property string placeholderText: "Add task here..."
+                        selectByMouse: true
+                        wrapMode: Text.WordWrap
+                        Text {
+                            text: taskTextInput.placeholderText
+                            font.styleName: "Italic"
+                            font.pointSize: 16
+                            color: "#d6ffffff"
+                            visible: !taskTextInput.text && !taskTextInput.activeFocus
+                            anchors.centerIn: parent
+                        }
                     }
                 }
+
+
+
 
 
             RowLayout{
@@ -74,7 +87,10 @@ Item {
                     Layout.preferredWidth: 100
                     Layout.preferredHeight: 36
                     text: qsTr("Add")
-                    onClicked: task.addTask(taskTextInput.text)
+                    onClicked: {
+                        task.addTask(taskTextInput.text)
+                        taskTextInput.text = ""
+                    }
                 }
 
                 RoundButton {
@@ -100,7 +116,7 @@ Item {
 
                 x: 14
                 y: 181
-                width: parent.width - 70
+                width: parent.width - 80
                 height: parent.height - 180
                 color: "#153584e4"
                 anchors.right: parent.right

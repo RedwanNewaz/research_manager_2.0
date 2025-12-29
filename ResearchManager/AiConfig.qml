@@ -290,7 +290,7 @@ Rectangle {
                 Button {
                     id: testButton
                     text: "Send Test Prompt"
-                    width: 150
+                    width: 180
                     height: 40
                     
                     background: Rectangle {

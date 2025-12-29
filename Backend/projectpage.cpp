@@ -53,8 +53,14 @@ void ProjectPage::setProjectDescription(const QString &newProjectDescription)
         return;
 
     qInfo() << "[ProjectPage]: update database " << m_projectDescription;
-    QString sqlCmd = QString("UPDATE projects SET description = '%2' WHERE name = '%1'").arg(m_projectName, newProjectDescription);
-    db_->updateDB(sqlCmd);
+    // QString sqlCmd = QString("UPDATE projects SET description = '%2' WHERE name = '%1'").arg(m_projectName, newProjectDescription);
+    // db_->updateDB(sqlCmd);
+
+    auto query = db_->getBinder("UPDATE projects SET description = :desc WHERE name = :name");
+    query.bindValue(":desc", m_projectName);
+    query.bindValue(":name", newProjectDescription);
+    query.exec();
+
     m_projectDescription = newProjectDescription;
     emit projectDescriptionChanged();
 }
@@ -108,10 +114,16 @@ void ProjectPage::setProjectInfo(const QStringList& pInfo)
     qInfo() <<"[ProjectPage]: set project info " << pInfo;
     auto projectName = pInfo[0];
     auto cat = pInfo[1].toInt();
-    QString sqlCmd = QString("INSERT INTO projects (name, description, category_id) VALUES ('%1', '%1', %2)")
-                    .arg(projectName)
-                    .arg(cat);
-    db_->updateDB(sqlCmd);
+    // QString sqlCmd = QString("INSERT INTO projects (name, description, category_id) VALUES ('%1', '%1', %2)")
+    //                 .arg(projectName)
+    //                 .arg(cat);
+    // db_->updateDB(sqlCmd);
+
+    auto query = db_->getBinder("INSERT INTO projects (name, description, category_id) VALUES (:name, :desc, :cat)");
+    query.bindValue(":name", projectName);
+    query.bindValue(":desc", projectName);
+    query.bindValue(":cat", cat);
+    query.exec();
 }
 
 QString ProjectPage::projectRoot() const

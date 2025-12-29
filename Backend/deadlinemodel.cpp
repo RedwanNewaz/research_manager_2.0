@@ -24,7 +24,7 @@ void DeadlineModel::deleteRow(int id)
 
     int id_ = event_map_[id].id;
     QString sqlCmd= QString("DELETE FROM calendars WHERE id = %1").arg(id_);
-    if(db_->updateDB(sqlCmd))
+    if(db_->deleteItem(sqlCmd))
     {
         qInfo() << "[DeadlineModel] success ";
     }
@@ -159,13 +159,23 @@ void DeadlineModel::setDeadlineTxt(const QString &newDeadlineTxt)
             }
             QString isoString = date.toString(Qt::ISODate);
 
-            qDebug() << "[DeadlineModel]: Date:" << isoString << "Event:" << event;
-            QString sqlCmd = QString("INSERT INTO calendars (timestamp, event, project_id) VALUES ('%1', '%2', %3)")
-                             .arg(isoString)
-                             .arg(event)
-                                 .arg(m_projectId);
+            // qDebug() << "[DeadlineModel]: Date:" << isoString << "Event:" << event;
+            // QString sqlCmd = QString("INSERT INTO calendars (timestamp, event, project_id) VALUES ('%1', '%2', %3)")
+            //                  .arg(isoString)
+            //                  .arg(event)
+            //                      .arg(m_projectId);
 
-            db_->updateDB(sqlCmd);
+            // db_->updateDB(sqlCmd);
+
+            auto query = db_->getBinder(
+                "INSERT INTO calendars (timestamp, event, project_id) "
+                "VALUES (:time, :event, :pid)"
+                );
+
+            query.bindValue(":time", isoString);
+            query.bindValue(":event", event);
+            query.bindValue(":pid", m_projectId);
+            query.exec();
         }
         m_deadlineTxt = "";
     }

@@ -51,7 +51,7 @@ void AiConfig::createTableIfNotExists()
         )
     )";
 
-    if (!m_configDb->updateDB(createTableSql)) {
+    if (!m_configDb->createTable(createTableSql)) {
         qWarning() << "[AiConfig] Failed to create AiConfig table";
     } else {
         qInfo() << "[AiConfig] AiConfig table ready";
@@ -120,12 +120,21 @@ bool AiConfig::updateConfigValue(const QString &key, const QString &value)
         return false;
     }
 
-    // Use INSERT OR REPLACE to handle both insert and update
-    QString sql = QString(
-        "INSERT OR REPLACE INTO AiConfig (key, value) VALUES ('%1', '%2')"
-    ).arg(key).arg(value.toHtmlEscaped().replace("'", "''"));
+    // // Use INSERT OR REPLACE to handle both insert and update
+    // QString sql = QString(
+    //     "INSERT OR REPLACE INTO AiConfig (key, value) VALUES ('%1', '%2')"
+    // ).arg(key).arg(value.toHtmlEscaped().replace("'", "''"));
     
-    return m_configDb->updateDB(sql);
+    // return m_configDb->updateDB(sql);
+
+    auto query = m_configDb->getBinder(
+        "INSERT OR REPLACE INTO AiConfig (key, value) "
+        "VALUES (:key, :value)"
+        );
+
+    query.bindValue(":key", key);
+    query.bindValue(":value", value.toHtmlEscaped().replace("'", "''"));
+    return query.exec();
 }
 
 void AiConfig::setGeminiApiKey(const QString &key)
