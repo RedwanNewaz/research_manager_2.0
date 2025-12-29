@@ -90,7 +90,7 @@ Item {
                     Layout.preferredWidth: 100
                     Layout.preferredHeight: 36
                     text: qsTr("Delete")
-                    onClicked: task.deleteTask(task.taskIndex)
+                    onClicked: task.deleteTasks()
                 }
             }
 

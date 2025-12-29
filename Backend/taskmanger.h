@@ -23,7 +23,7 @@ public:
 
     Q_INVOKABLE void addTask(const QString& text);
     Q_INVOKABLE void editTask(int index, const QString& title, const QString& description);
-    Q_INVOKABLE void deleteTask(int index);
+    Q_INVOKABLE void deleteTasks();
     Q_INVOKABLE void updateCheckedBox(int index, bool value);
 
     int taskIndex() const;

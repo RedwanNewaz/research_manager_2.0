@@ -34,8 +34,8 @@ ColumnLayout {
 
                     CheckBox {
                         id: taskCheckBox
-                        checked: model.checked
-                        onCheckedChanged:updateCheckedBox(task, index, checked)
+
+                        onCheckedChanged:task.updateCheckedBox(index, checked)
                     }
 
                     TextEdit {
@@ -74,11 +74,5 @@ ColumnLayout {
     function onEditButtonClicked(model, index, text) {
         model.taskIndex = index
         noteViewPopup.open()
-    }
-
-    function updateCheckedBox(model, index, checked) {
-        model.taskIndex = index
-        model.updateCheckedBox(index, checked)
-        console.log("[TaskManger]: checked box = ", index)
     }
 }

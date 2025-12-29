@@ -133,11 +133,8 @@ void TaskManger::editTask(int index, const QString& title, const QString& descri
     emit layoutChanged();
 }
 
-void TaskManger::deleteTask(int index)
+void TaskManger::deleteTasks()
 {
-    if(record_map_.find(index) == record_map_.end()) return;
-
-
     for(const auto& it: record_map_)
     {
         auto record = it.second;
