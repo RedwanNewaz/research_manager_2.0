@@ -21,9 +21,11 @@ public:
     QVariant data(const QModelIndex &index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
 
-    Q_INVOKABLE void setData(const QModelIndex &index, bool value, int role);
+    Q_INVOKABLE void checkData(int index, bool value);
     Q_INVOKABLE void addLink(const QString& link);
-    Q_INVOKABLE void deleteLink(int index);
+    Q_INVOKABLE void deleteLinks();
+    Q_INVOKABLE bool anyCheck();
+    Q_INVOKABLE void updateWebsiteName(int index, const QString& webName);
 
 
 signals:
@@ -35,10 +37,17 @@ protected:
     QString getWebsiteName(const QString &urlString);
 
 private:
+    struct WebData{
+        int index;
+        int id;
+        bool checked;
+        QString website;
+        QString url;
+    };
+
     DbmPtr db_;
-    mutable QStringList data_, site_names_;
-    int m_projectId, m_checkBoxIndex;
-    mutable QHash<QString, int> id_map_;
+    mutable QMap<int, WebData> web_map_;
+    int m_projectId;
 
     QNetworkAccessManager m_manager;
 

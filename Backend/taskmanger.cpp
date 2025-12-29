@@ -109,12 +109,10 @@ void TaskManger::editTask(int index, const QString& title, const QString& descri
 {
     if(record_map_.find(index) == record_map_.end()) return;
 
-    qInfo() << "[TaskManger]: editTask: " << index;
 
-    QSqlQuery query(db_->database());
 
     // 1. Prepare the statement with placeholders
-    query.prepare("UPDATE tasks SET title = :title, description = :desc WHERE id = :id");
+    auto query = db_->getBinder("UPDATE tasks SET title = :title, description = :desc WHERE id = :id");
 
     // 2. Bind the actual values
     query.bindValue(":title", title);
@@ -124,7 +122,6 @@ void TaskManger::editTask(int index, const QString& title, const QString& descri
     // 3. Execute the query
     if(query.exec())
     {
-        record_map_[index].data = title;
         setTaskDescription(description);
         qInfo() << "[TaskManger] editTask success to update database " << title;
     }

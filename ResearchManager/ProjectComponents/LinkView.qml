@@ -69,8 +69,10 @@ Rectangle {
             clip: true
 
             delegate: Item {
+                id: cellDelegate
                 width: linkListView.width
                 height: 40
+                property bool isEditing: false
 
                 Rectangle {
                     anchors.fill: parent
@@ -83,9 +85,18 @@ Rectangle {
                         spacing: 10
 
                         CheckBox {
-                            checked: model.checked
-                            onCheckedChanged: linkViewer.taskIndex = linkViewer.updateCheckedBox(lnModel, index, checked)
+                            id: linkChecker
+                            onCheckedChanged:{
+                                console.log("[LinkModel] index = ", index, " checked = ", checked)
+                                lnModel.checkData(index, checked)
+                                if(lnModel.anyCheck())
+                                    addLinkBtn.icon.source = "qrc:/ResearchManager/ResearchManager/images/delete.svg";
+                                else
+                                    addLinkBtn.icon.source = "qrc:/ResearchManager/ResearchManager/images/send.svg"
+                            }
                         }
+
+
 
                         Text {
                             text: model.website
@@ -104,30 +115,65 @@ Rectangle {
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    if (model.url) {
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                onClicked: (mouse) => {
+                                    if (mouse.button === Qt.LeftButton && model.url) {
                                         Qt.openUrlExternally(model.url);
+                                    }
+                                    else if (mouse.button === Qt.RightButton) {
+                                       console.log("[LinkView] right clicked pressed")
+                                       cellDelegate.isEditing = true
                                     }
                                 }
 
                             }
                         }
+
                     }
+
+                    // edit link cell
+                    TextField {
+                        id: cellEditor
+                        anchors.fill: parent
+                        anchors.margins: 5
+                        text: model.website
+                        visible: cellDelegate.isEditing
+                        verticalAlignment: Text.AlignVCenter
+
+                        onEditingFinished: {
+                            // wsModel.setData(wsModel.index(row, column), text, Qt.EditRole)
+                            lnModel.updateWebsiteName(index, text)
+                            cellDelegate.isEditing = false
+                        }
+
+                        onActiveFocusChanged: {
+                            if (!activeFocus) {
+                                cellDelegate.isEditing = false
+                            }
+                        }
+
+                        Component.onCompleted: {
+                            if (visible) {
+                                forceActiveFocus()
+                                selectAll()
+                            }
+                        }
+                    }
+
                 }
             }
         }
 
+
         // ----------Connections ------
-        property int taskIndex: -1
 
         Connections {
             target: addLinkBtn
             function onClicked() {
-                if (linkViewer.taskIndex >= 0) {
+                if (lnModel.anyCheck()) {
                     console.log("delete link item " + linkViewer.taskIndex.toString())
-                    lnModel.deleteLink(linkViewer.taskIndex)
-                    linkViewer.taskIndex = -1
-                    addLinkBtn.icon.source = "qrc:/ResearchManager/ResearchManager/images/send.svg"
+                    lnModel.deleteLinks()
+
                 } else if(textLinkInput.text !== "") {
                     console.log("link button pressed " + textLinkInput.text)
                     lnModel.addLink(textLinkInput.text)
@@ -136,18 +182,6 @@ Rectangle {
             }
         }
 
-        function updateCheckedBox(model, index, checked) {
-            if(!checked) {
-                addLinkBtn.icon.source = "qrc:/ResearchManager/ResearchManager/images/send.svg"
-                return -1
-            }
 
-            for (var i = 0; i < model.rowCount(); ++i)
-                if (i !== index)
-                    model.setData(model.index(i, 0), false, Qt.UserRole)
-
-            addLinkBtn.icon.source = "qrc:/ResearchManager/ResearchManager/images/delete.svg"
-            return index
-        }
     }
 }

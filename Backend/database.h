@@ -53,6 +53,13 @@ public:
         return result;
     }
 
+    QSqlQuery getBinder(const QString& cmd)
+    {
+        QSqlQuery query(db_);
+        query.prepare(cmd);
+        return query;
+    }
+
 
 
     bool connect(const QString& db_path)

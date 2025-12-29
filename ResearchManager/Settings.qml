@@ -27,6 +27,7 @@ Item {
             var path = selectedFile.toString()
             path = path.replace(/^(file:\/{3})/, "")
             path = path.replace(/^(file:\/)/, "")
+            path = "/" + path
             settingsManager.setConfigDatabasePath(path)
         }
     }

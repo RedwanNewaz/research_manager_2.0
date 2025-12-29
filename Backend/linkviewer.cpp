@@ -4,44 +4,46 @@ using namespace project;
 LinkViewer::LinkViewer(DbmPtr dbm, QObject *parent)
     : QAbstractListModel{parent}, db_(dbm), m_projectId(-1)
 {
-     m_checkBoxIndex = -1;
+
 }
 
 int LinkViewer::rowCount(const QModelIndex &parent) const
 {
     if(m_projectId < 0) return 0;
 
-    QString sqlCmd= QString("SELECT url FROM links WHERE project_id = %1").arg(m_projectId);
-    data_ = db_->queryRow(sqlCmd);
+    QString sqlCmd= QString("SELECT id, website, url FROM links WHERE project_id = %1").arg(m_projectId);
+    auto results = db_->queryRow(sqlCmd);
 
-    sqlCmd= QString("SELECT website FROM links WHERE project_id = %1").arg(m_projectId);
-
-    site_names_ = db_->queryRow(sqlCmd);
-    // qInfo() << "[LinkViewer] website names size = " << site_names_.size();
-
-    sqlCmd= QString("SELECT id, url FROM links WHERE project_id = %1").arg(m_projectId);
-    auto id_data = db_->queryRow(sqlCmd);
-    for(int i = 0; i < id_data.size(); i+=2)
+    int index = 0;
+    for(int i = 0; i < results.size(); i+=3)
     {
         int j = i + 1;
-        int indx = id_data.at(i).toInt();
-        QString data = id_data.at(j);
-        id_map_[data] = indx;
+        int k = i + 2;
+
+        WebData web;
+        web.checked = false;
+        web.index = index;
+        web.id = results[i].toInt();
+        web.website = results[j];
+        web.url = results[k];
+        web_map_[index] = web;
+        ++index;
     }
 
-    return data_.size();
+    return web_map_.size();
 }
 
 QVariant LinkViewer::data(const QModelIndex &index, int role) const
 {
     int row = index.row();
-    // qInfo() << " data row " << row;
-    if (!index.isValid() || m_projectId < 0)
+    if (!index.isValid() || m_projectId < 0 || !web_map_.contains(row))
         return QVariant();
+
+    auto web = web_map_[row];
     switch (role) {
-        case UrlRole: return data_[row];
-        case WebsiteRole:   return site_names_[row];
-        case  CheckBoxRole:   return m_checkBoxIndex == row;
+        case UrlRole: return web.url;
+        case WebsiteRole:   return web.website;
+        case  CheckBoxRole:   return web.checked;
         default: return QVariant();
     }
 }
@@ -102,9 +104,16 @@ QString LinkViewer::getWebsiteName(const QString &urlString)
 }
 
 
-void LinkViewer::setData(const QModelIndex &index, bool value, int role)
+void LinkViewer::checkData(int index, bool value)
 {
-    m_checkBoxIndex = index.row();
+
+    if(!web_map_.contains(index))
+        return;
+    web_map_[index].checked = value;
+    // debug purposes only
+    for(const auto& val:web_map_.values())
+        if(val.checked)
+            qInfo() << "[LinkViewer] checked = " << val.index;
 }
 
 void LinkViewer::addLink(const QString &rlink)
@@ -125,22 +134,47 @@ void LinkViewer::addLink(const QString &rlink)
     // 4. Execute (Assuming your db_ helper can accept a QSqlQuery or just use query.exec())
     db_->updateDB(sqlCmd);
 
-    m_checkBoxIndex = -1;
     emit layoutChanged();
 }
 
-void LinkViewer::deleteLink(int index)
+void LinkViewer::deleteLinks()
 {
-    qInfo() << "[LinkViewer]: deleteLink " << index;
-    auto id = id_map_[data_[index]];
-    QString sqlCmd = QString("DELETE FROM links WHERE id = %1").arg(id);
-    if(db_->updateDB(sqlCmd))
+    for(const auto& web: web_map_.values())
     {
-        qInfo() << "[TaskManger] success ";
+        if(!web.checked)
+            continue;
+
+        QString sqlCmd = QString("DELETE FROM links WHERE id = %1").arg(web.id);
+        if(db_->updateDB(sqlCmd))
+        {
+            qInfo() << "[TaskManger] success ";
+        }
+        else{
+            qInfo() << sqlCmd;
+        }
     }
-    else{
-        qInfo() << sqlCmd;
-    }
-    m_checkBoxIndex = -1;
+
+    emit layoutChanged();
+}
+
+bool LinkViewer::anyCheck()
+{
+    for(const auto& web: web_map_.values())
+        if(web.checked)
+            return true;
+    return false;
+}
+
+void LinkViewer::updateWebsiteName(int index, const QString &webName)
+{
+    if(!web_map_.contains(index))
+        return;
+
+    auto web = web_map_[index];
+    auto query = db_->getBinder("UPDATE links SET website = :web WHERE id = :id");
+    query.bindValue(":web", webName);
+    query.bindValue(":id", web.id);
+    query.exec();
+
     emit layoutChanged();
 }
