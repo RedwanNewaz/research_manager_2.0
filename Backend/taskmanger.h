@@ -25,6 +25,7 @@ public:
     Q_INVOKABLE void editTask(int index, const QString& title, const QString& description);
     Q_INVOKABLE void deleteTasks();
     Q_INVOKABLE void updateCheckedBox(int index, bool value);
+    Q_INVOKABLE void moveItem(int from, int to);
 
     int taskIndex() const;
     void setTaskIndex(int newTaskIndex);
@@ -53,10 +54,13 @@ private:
         int index;
         int id;
         QString data;
+        QDateTime timestamp;
         bool checked;
     };
 
     mutable std::map<int, TaskRecord> record_map_;
+
+    void updateTimestamp(int id, const QDateTime& timestamp) const;
 
 
 

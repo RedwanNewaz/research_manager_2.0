@@ -207,7 +207,7 @@ public:
                 "description" TEXT,
                 "project_id" INTEGER NOT NULL,
                 PRIMARY KEY("id"),
-                FOREIGN KEY("project_id") REFERENCES "projects"("id")
+                FOREIGN KEY("project_id") REFERENCES "projects"("id") ON DELETE CASCADE
             )
         )")) {
             qDebug() << "Error creating calendars table:" << query.lastError().text();
@@ -227,7 +227,7 @@ public:
                 "photo" VARCHAR(500),
                 "project_id" INTEGER NOT NULL,
                 PRIMARY KEY("id"),
-                FOREIGN KEY("project_id") REFERENCES "projects"("id")
+                FOREIGN KEY("project_id") REFERENCES "projects"("id") ON DELETE CASCADE
             )
         )")) {
             qDebug() << "Error creating contacts table:" << query.lastError().text();
@@ -241,9 +241,10 @@ public:
                 "url" VARCHAR(500) NOT NULL,
                 "website" VARCHAR(200),
                 "description" TEXT,
+                "timestamp" DATETIME,
                 "project_id" INTEGER NOT NULL,
                 PRIMARY KEY("id"),
-                FOREIGN KEY("project_id") REFERENCES "projects"("id")
+                FOREIGN KEY("project_id") REFERENCES "projects"("id") ON DELETE CASCADE
             )
         )")) {
             qDebug() << "Error creating links table:" << query.lastError().text();
@@ -258,7 +259,7 @@ public:
                 "bibtex" TEXT,
                 "project_id" INTEGER NOT NULL,
                 PRIMARY KEY("id"),
-                FOREIGN KEY("project_id") REFERENCES "projects"("id")
+                FOREIGN KEY("project_id") REFERENCES "projects"("id") ON DELETE CASCADE
             )
         )")) {
             qDebug() << "Error creating references table:" << query.lastError().text();
@@ -275,7 +276,7 @@ public:
                 "pending" BOOLEAN,
                 "project_id" INTEGER NOT NULL,
                 PRIMARY KEY("id"),
-                FOREIGN KEY("project_id") REFERENCES "projects"("id")
+                FOREIGN KEY("project_id") REFERENCES "projects"("id") ON DELETE CASCADE
             )
         )")) {
             qDebug() << "Error creating tasks table:" << query.lastError().text();
@@ -293,128 +294,8 @@ private:
 
 
 inline bool initializeDatabase(const QString &dbPath) {
-    QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", "newResearch");
-    db.setDatabaseName(dbPath);
-
-    if (!db.open()) {
-        qDebug() << "Error: Failed to open database:" << db.lastError().text();
-        return false;
-    }
-
-    QSqlQuery query(db);
-
-    // Create projects table first (referenced by other tables)
-    if (!query.exec(R"(
-            CREATE TABLE IF NOT EXISTS "projects" (
-                "id" INTEGER NOT NULL,
-                "name" VARCHAR NOT NULL,
-                "description" VARCHAR,
-                "category_id" INTEGER,
-                PRIMARY KEY("id")
-            )
-        )")) {
-        qDebug() << "Error creating projects table:" << query.lastError().text();
-        return false;
-    }
-
-    // Create categories table
-    if (!query.exec(R"(
-            CREATE TABLE IF NOT EXISTS "categories" (
-                "id" INTEGER,
-                "name" TEXT,
-                "year_id" INTEGER
-            )
-        )")) {
-        qDebug() << "Error creating categories table:" << query.lastError().text();
-        return false;
-    }
-
-    // Create calendars table
-    if (!query.exec(R"(
-            CREATE TABLE IF NOT EXISTS "calendars" (
-                "id" INTEGER NOT NULL,
-                "timestamp" DATETIME NOT NULL,
-                "event" VARCHAR(200) NOT NULL,
-                "description" TEXT,
-                "project_id" INTEGER NOT NULL,
-                PRIMARY KEY("id"),
-                FOREIGN KEY("project_id") REFERENCES "projects"("id")
-            )
-        )")) {
-        qDebug() << "Error creating calendars table:" << query.lastError().text();
-        return false;
-    }
-
-    // Create contacts table
-    if (!query.exec(R"(
-            CREATE TABLE IF NOT EXISTS "contacts" (
-                "id" INTEGER NOT NULL,
-                "name" VARCHAR(200) NOT NULL,
-                "affiliation" VARCHAR(200),
-                "website" VARCHAR(500),
-                "phone" VARCHAR(50),
-                "email" VARCHAR(200),
-                "zoom" VARCHAR(200),
-                "photo" VARCHAR(500),
-                "project_id" INTEGER NOT NULL,
-                PRIMARY KEY("id"),
-                FOREIGN KEY("project_id") REFERENCES "projects"("id")
-            )
-        )")) {
-        qDebug() << "Error creating contacts table:" << query.lastError().text();
-        return false;
-    }
-
-    // Create links table
-    if (!query.exec(R"(
-            CREATE TABLE IF NOT EXISTS "links" (
-                "id" INTEGER NOT NULL,
-                "url" VARCHAR(500) NOT NULL,
-                "website" VARCHAR(200),
-                "description" TEXT,
-                "project_id" INTEGER NOT NULL,
-                PRIMARY KEY("id"),
-                FOREIGN KEY("project_id") REFERENCES "projects"("id")
-            )
-        )")) {
-        qDebug() << "Error creating links table:" << query.lastError().text();
-        return false;
-    }
-
-    // Create references table
-    if (!query.exec(R"(
-            CREATE TABLE IF NOT EXISTS "references" (
-                "id" INTEGER NOT NULL,
-                "title" VARCHAR(300) NOT NULL,
-                "bibtex" TEXT,
-                "project_id" INTEGER NOT NULL,
-                PRIMARY KEY("id"),
-                FOREIGN KEY("project_id") REFERENCES "projects"("id")
-            )
-        )")) {
-        qDebug() << "Error creating references table:" << query.lastError().text();
-        return false;
-    }
-
-    // Create tasks table
-    if (!query.exec(R"(
-            CREATE TABLE IF NOT EXISTS "tasks" (
-                "id" INTEGER NOT NULL,
-                "title" VARCHAR(200) NOT NULL,
-                "description" TEXT,
-                "timestamp" DATETIME,
-                "pending" BOOLEAN,
-                "project_id" INTEGER NOT NULL,
-                PRIMARY KEY("id"),
-                FOREIGN KEY("project_id") REFERENCES "projects"("id")
-            )
-        )")) {
-        qDebug() << "Error creating tasks table:" << query.lastError().text();
-        return false;
-    }
-
-    qDebug() << "Database initialized successfully!";
-    return true;
+    DatabaseManager dbm("newResearch", dbPath);
+    return dbm.initializeDatabase();
 }
 
 

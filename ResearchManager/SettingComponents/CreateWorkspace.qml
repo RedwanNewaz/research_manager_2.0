@@ -13,7 +13,14 @@ Rectangle {
         "Database": "e.g., G:/My Drive/UNO/2026/database.db",
         "Year": "e.g., 2026",
         "Workspace": "e.g., G:/My Drive/UNO/2026/ResearchWorkspace",
-        "Icon": "e.g., icons8-google-drive-240.svg"
+        "Icon": "Start typing: Local, One Drive, Google Drive, Dropbox"
+    })
+
+    property var iconOptions: ({
+        "Local": "local-folder.svg",
+        "One Drive": "icons8-google-drive-240.svg",
+        "Google Drive": "icons8-google-drive-64.png",
+        "Dropbox": "icons8-dropbox-64.png"
     })
 
     Flickable {
@@ -84,7 +91,7 @@ Rectangle {
 
                 delegate: Rectangle {
                     width: parent.width - 40
-                    height: 110
+                    height: model.name === "Icon" && suggestionList.visible ? 220 : 110
                     anchors.horizontalCenter: parent.horizontalCenter
                     color: fieldMouseArea.containsMouse ? "#1f2937" : "#111827"
                     border.color: textField.activeFocus ? "#6366f1" : "#374151"
@@ -103,6 +110,10 @@ Rectangle {
                         NumberAnimation { duration: 200 }
                     }
 
+                    Behavior on height {
+                        NumberAnimation { duration: 200 }
+                    }
+
                     // Subtle glow when focused
                     layer.enabled: textField.activeFocus
                     layer.effect: MultiEffect {
@@ -115,6 +126,7 @@ Rectangle {
                     MouseArea {
                         id: fieldMouseArea
                         anchors.fill: parent
+                        anchors.bottomMargin: model.name === "Icon" && suggestionList.visible ? 110 : 0
                         hoverEnabled: true
                         propagateComposedEvents: true
                         onClicked: textField.forceActiveFocus()
@@ -181,34 +193,185 @@ Rectangle {
 
                             onTextChanged: {
                                 settingsModel.setProperty(index, "value", text)
-                            }
 
-                            // Add visual feedback on focus
-                            onActiveFocusChanged: {
-                                if (activeFocus) {
-                                    selectAll()
+                                // Show autocomplete for Icon field
+                                if (model.name === "Icon") {
+                                    updateSuggestions(text)
                                 }
                             }
 
-                            // Handle special keys
+                            onActiveFocusChanged: {
+                                if (activeFocus) {
+                                    selectAll()
+                                    if (model.name === "Icon") {
+                                        updateSuggestions(text)
+                                    }
+                                } else {
+                                    if (model.name === "Icon") {
+                                        suggestionList.visible = false
+                                    }
+                                }
+                            }
+
                             Keys.onReturnPressed: {
-                                // Move to next field
-                                if (index < settingsModel.count - 1) {
-                                    var nextItem = contentColumn.children[index + 2]
-                                    if (nextItem && nextItem.children[1]) {
-                                        nextItem.children[1].children[2].forceActiveFocus()
+                                if (model.name === "Icon" && suggestionList.visible && suggestionList.currentIndex >= 0) {
+                                    selectSuggestion(suggestionList.currentIndex)
+                                    event.accepted = true
+                                } else {
+                                    // Move to next field
+                                    if (index < settingsModel.count - 1) {
+                                        var nextItem = contentColumn.children[index + 2]
+                                        if (nextItem && nextItem.children[1]) {
+                                            nextItem.children[1].children[2].forceActiveFocus()
+                                        }
                                     }
                                 }
                             }
 
                             Keys.onTabPressed: {
-                                // Move to next field
                                 event.accepted = true
+                                if (model.name === "Icon" && suggestionList.visible && suggestionList.currentIndex >= 0) {
+                                    selectSuggestion(suggestionList.currentIndex)
+                                }
+
+                                // Move to next field
                                 if (index < settingsModel.count - 1) {
                                     var nextItem = contentColumn.children[index + 2]
                                     if (nextItem && nextItem.children[1]) {
                                         nextItem.children[1].children[2].forceActiveFocus()
                                     }
+                                }
+                            }
+
+                            Keys.onDownPressed: {
+                                if (model.name === "Icon" && suggestionList.visible) {
+                                    suggestionList.incrementCurrentIndex()
+                                    event.accepted = true
+                                }
+                            }
+
+                            Keys.onUpPressed: {
+                                if (model.name === "Icon" && suggestionList.visible) {
+                                    suggestionList.decrementCurrentIndex()
+                                    event.accepted = true
+                                }
+                            }
+
+                            function updateSuggestions(input) {
+                                var suggestions = []
+                                var keys = Object.keys(root.iconOptions)
+
+                                if (input.length === 0) {
+                                    suggestions = keys
+                                } else {
+                                    var lowerInput = input.toLowerCase()
+                                    for (var i = 0; i < keys.length; i++) {
+                                        if (keys[i].toLowerCase().indexOf(lowerInput) !== -1) {
+                                            suggestions.push(keys[i])
+                                        }
+                                    }
+                                }
+
+                                suggestionModel.clear()
+                                for (var j = 0; j < suggestions.length; j++) {
+                                    suggestionModel.append({
+                                        "name": suggestions[j],
+                                        "path": root.iconOptions[suggestions[j]]
+                                    })
+                                }
+
+                                suggestionList.visible = suggestions.length > 0 && textField.activeFocus
+                                if (suggestionList.visible) {
+                                    suggestionList.currentIndex = 0
+                                }
+                            }
+
+                            function selectSuggestion(idx) {
+                                if (idx >= 0 && idx < suggestionModel.count) {
+                                    var selectedName = suggestionModel.get(idx).name
+                                    var selectedPath = suggestionModel.get(idx).path
+                                    textField.text = selectedPath
+                                    settingsModel.setProperty(index, "value", selectedPath)
+                                    suggestionList.visible = false
+                                }
+                            }
+                        }
+
+                        // Autocomplete suggestions list (only for Icon field)
+                        Rectangle {
+                            id: suggestionList
+                            width: parent.width
+                            height: 100
+                            visible: false
+                            color: "#111827"
+                            border.color: "#374151"
+                            border.width: 1
+                            radius: 8
+                            clip: true
+
+                            property alias currentIndex: listView.currentIndex
+
+                            ListView {
+                                id: listView
+                                anchors.fill: parent
+                                anchors.margins: 1
+                                model: ListModel { id: suggestionModel }
+                                clip: true
+
+                                delegate: ItemDelegate {
+                                    width: listView.width
+                                    height: 35
+
+                                    background: Rectangle {
+                                        color: {
+                                            if (index === listView.currentIndex) return "#374151"
+                                            if (hovered) return "#1f2937"
+                                            return "transparent"
+                                        }
+
+                                        Behavior on color {
+                                            ColorAnimation { duration: 150 }
+                                        }
+                                    }
+
+                                    contentItem: Row {
+                                        spacing: 10
+                                        leftPadding: 12
+
+                                        Text {
+                                            text: "🎨"
+                                            font.pixelSize: 14
+                                            anchors.verticalCenter: parent.verticalCenter
+                                        }
+
+                                        Column {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            spacing: 2
+
+                                            Text {
+                                                text: model.name
+                                                color: "#f3f4f6"
+                                                font.pixelSize: 13
+                                                font.weight: Font.Medium
+                                            }
+
+                                            Text {
+                                                text: model.path
+                                                color: "#6b7280"
+                                                font.pixelSize: 10
+                                            }
+                                        }
+                                    }
+
+                                    onClicked: {
+                                        textField.selectSuggestion(index)
+                                    }
+
+                                    hoverEnabled: true
+                                }
+
+                                ScrollBar.vertical: ScrollBar {
+                                    policy: ScrollBar.AsNeeded
                                 }
                             }
                         }
@@ -241,7 +404,7 @@ Rectangle {
                     }
 
                     Text {
-                        text: "• Press Tab or Enter to move to the next field\n• Required fields are marked with a red dot\n• Use Browse buttons (if available) to select paths\n• All fields can be edited later from workspace manager"
+                        text: "• Press Tab or Enter to move to the next field\n• Required fields are marked with a red dot\n• For Icon field, start typing to see autocomplete suggestions\n• Use arrow keys to navigate suggestions, Enter to select\n• All fields can be edited later from workspace manager"
                         color: "#bfdbfe"
                         font.pixelSize: 11
                         wrapMode: Text.WordWrap

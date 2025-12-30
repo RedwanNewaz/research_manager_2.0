@@ -13,6 +13,7 @@ int LinkViewer::rowCount(const QModelIndex &parent) const
 
     QString sqlCmd= QString("SELECT id, website, url FROM links WHERE project_id = %1").arg(m_projectId);
     auto results = db_->queryRow(sqlCmd);
+    web_map_.clear();
 
     int index = 0;
     for(int i = 0; i < results.size(); i+=3)

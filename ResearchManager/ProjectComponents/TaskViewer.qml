@@ -1,13 +1,11 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
-import QtQuick.Effects
 
 ColumnLayout {
     id: taskViewer
     anchors.fill: parent
     spacing: 10
-
 
     ListView {
         id: taskListView
@@ -17,59 +15,161 @@ ColumnLayout {
         Layout.fillHeight: true
         clip: true
         spacing: 5
+        interactive: true
 
         delegate: Item {
-            id: taskItem
-            width: parent ? parent.width : undefined
+            id: delegateRoot
+            width: taskListView.width
             height: Math.max(50, textItem.contentHeight + 20)
 
-            Rectangle{
-                id:taskRect
-                anchors.fill: parent
+            property int visualIndex: index
+
+            Rectangle {
+                id: contentItem
+                width: delegateRoot.width
+                height: delegateRoot.height
+                x: 0
+                y: 0
                 color: "transparent"
+                radius: 4
 
-                RowLayout {
-                    anchors.fill: parent
-                    spacing: 10
+                Drag.active: dragArea.drag.active
+                Drag.source: delegateRoot
+                Drag.hotSpot.x: width / 2
+                Drag.hotSpot.y: height / 2
 
-                    CheckBox {
-                        id: taskCheckBox
+                border.color: dragArea.drag.active ? "#80ffffff" : "transparent"
+                border.width: dragArea.drag.active ? 2 : 0
+                opacity: dragArea.drag.active ? 0.7 : 1.0
+                scale: dragArea.drag.active ? 1.05 : 1.0
 
-                        onCheckedChanged:task.updateCheckedBox(index, checked)
+                Behavior on opacity { NumberAnimation { duration: 100 } }
+                Behavior on scale { NumberAnimation { duration: 100 } }
+                Behavior on border.color { ColorAnimation { duration: 100 } }
+
+                states: State {
+                    when: dragArea.drag.active
+
+                    ParentChange {
+                        target: contentItem
+                        parent: taskListView
                     }
 
-                    TextEdit {
-                        id: textItem
-                        text: model.title
-                        wrapMode: Text.WordWrap
-                        color: "#d6ffffff"
-                        font.pixelSize: 16
-                        Layout.fillWidth: true
-
-                        readOnly: true
-                        selectByMouse: true
-                        focus: false
-                        cursorVisible: false
-
-                        // Make it clickable
-                        MouseArea{
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            onDoubleClicked: onEditButtonClicked(task, index)
-                        }
+                    PropertyChanges {
+                        target: contentItem
+                        color: "#40ffffff"
+                        z: 999
                     }
                 }
 
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.margins: 5
+                    spacing: 10
+
+                    Rectangle {
+                        id: dragHandle
+                        Layout.preferredWidth: 30
+                        Layout.fillHeight: true
+                        color: dragArea.containsMouse ? "#30ffffff" : "transparent"
+                        radius: 3
+
+                        Column {
+                            anchors.centerIn: parent
+                            spacing: 3
+
+                            Repeater {
+                                model: 3
+                                Rectangle {
+                                    width: 14
+                                    height: 2
+                                    color: "#90ffffff"
+                                    radius: 1
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            id: dragArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.SizeVerCursor
+
+                            drag.target: contentItem
+                            drag.axis: Drag.YAxis
+
+                            onPressed: {
+                                taskListView.interactive = false
+                            }
+
+                            onReleased: {
+                                contentItem.x = 0
+                                contentItem.y = 0
+                                taskListView.interactive = true
+                            }
+                        }
+                    }
+
+                    CheckBox {
+                        id: taskCheckBox
+                        checked: model.checked || false
+                        onCheckedChanged: {
+                            task.updateCheckedBox(visualIndex, checked)
+                        }
+                    }
+
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+
+                        TextEdit {
+                            id: textItem
+                            anchors.fill: parent
+                            text: model.title
+                            wrapMode: Text.WordWrap
+                            color: "#d6ffffff"
+                            font.pixelSize: 16
+                            readOnly: true
+                            selectByMouse: false
+                            focus: false
+                            cursorVisible: false
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onDoubleClicked: {
+                                onEditButtonClicked(task, visualIndex)
+                            }
+                        }
+                    }
+                }
+            }
+
+            DropArea {
+                anchors.fill: parent
+
+                onEntered: function(drag) {
+                    var from = drag.source.visualIndex
+                    var to = delegateRoot.visualIndex
+
+                    if (from !== to && from !== undefined && to !== undefined) {
+                        task.moveItem(from, to)
+                    }
+                }
 
             }
         }
 
+        displaced: Transition {
+            NumberAnimation {
+                properties: "x,y"
+                duration: 250
+                easing.type: Easing.OutQuad
+            }
+        }
     }
-
-
-
-
-    // Logic functions
 
     function onEditButtonClicked(model, index, text) {
         model.taskIndex = index

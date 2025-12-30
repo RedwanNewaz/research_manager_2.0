@@ -1,5 +1,6 @@
 #include "taskmanger.h"
 #include <QDateTime>
+#include <QSet>
 namespace project{
 
 TaskManger::TaskManger(DbmPtr db, QObject *parent): db_(db)
@@ -11,19 +12,36 @@ int TaskManger::rowCount(const QModelIndex &parent) const
 {
     if(m_projectId < 0) return 0;
 
-
-    QString sqlCmd= QString("SELECT id, title FROM tasks WHERE project_id = %1 ORDER BY timestamp DESC").arg(m_projectId);
+    QString sqlCmd= QString("SELECT id, title, timestamp FROM tasks WHERE project_id = %1 ORDER BY timestamp DESC").arg(m_projectId);
     auto id_data = db_->queryRow(sqlCmd);
+
+    QSet<QString>timeStamps;
 
     record_map_.clear();
     int index = 0;
-    for(int i = 0; i < id_data.size(); i+=2)
+    for(int i = 0; i < id_data.size(); i+=3)
     {
         int j = i + 1;
+        int k = i + 2;
         TaskRecord record;
         record.index = index;
         record.id = id_data.at(i).toInt();
         record.data = id_data.at(j);
+
+        auto time = id_data.at(k);
+
+        record.timestamp = QDateTime::fromString(time, Qt::ISODateWithMs);
+
+        if(timeStamps.contains(time))
+        {
+            record.timestamp = record.timestamp.addMSecs(1);
+            updateTimestamp(record.id, record.timestamp);
+        }
+
+
+        timeStamps.insert(time);
+
+        // qInfo() << record.timestamp;
         record.checked = false;
         record_map_[index] = record;
         ++index;
@@ -77,7 +95,7 @@ void TaskManger::addTask(const QString &text)
 
     // c. Timestamp (Format as ISO string, quoted)
     // The format must be compatible with the DATETIME column type.
-    QString timestampStr = QDateTime::currentDateTime().toString(Qt::ISODate);
+    QString timestampStr = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
 
     // d. Pending and Project ID (Integers, no quotes needed)
     int pending = 1;
@@ -170,11 +188,55 @@ void TaskManger::updateCheckedBox(int index, bool value)
             qInfo() << "[TaskManger]: checked box index = " << it.second.index;
 }
 
+void TaskManger::moveItem(int from, int to)
+{
+    //TODO swap timestamp and update database
+
+    if(from == to)
+        return;
+
+    int left = from;
+    int right = to;
+    if(left > right)
+        std::swap(left, right);
+
+    // Get timestamps from both records
+    auto timestampFrom = record_map_[left].timestamp;
+    auto timestampTo = record_map_[right].timestamp;
+    auto idFrom = record_map_[left].id;
+    auto idTo = record_map_[right].id;
+
+    // If timestamps are equal, slightly increase one to avoid conflicts
+    if (timestampFrom == timestampTo) {
+        // Add 1 millisecond to the 'to' timestamp
+        timestampTo = timestampTo.addMSecs(1);
+    }
+
+    // Update first record
+    updateTimestamp(idFrom, timestampTo);
+    // Update second record
+    updateTimestamp(idTo, timestampFrom);
+
+    emit layoutChanged();
+}
+
 void TaskManger::projectIdChanged(int id)
 {
     m_projectId = id;
     // qInfo() << QString("project id updated = %1").arg(id);
     emit layoutChanged();
+}
+
+void TaskManger::updateTimestamp(int id, const QDateTime &timestamp) const
+{
+    auto timeStr = timestamp.toString(Qt::ISODateWithMs);
+    // Update first record
+    auto fromQ = db_->getBinder("UPDATE tasks SET timestamp = :time WHERE id = :id");
+    fromQ.bindValue(":time", timeStr);
+    fromQ.bindValue(":id", id);
+    if (!fromQ.exec()) {
+        qWarning() << "[TaskManager] error updating from record:" << fromQ.lastError();
+    }
 }
 
 int TaskManger::taskIndex() const

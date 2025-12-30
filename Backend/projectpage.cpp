@@ -121,15 +121,17 @@ void ProjectPage::setProjectInfo(const QStringList& pInfo)
 
     if(db_->initializeDatabase())
     {
-        auto query = db_->getBinder("INSERT INTO projects (name, description, category_id) VALUES (:name, :desc, :cat)");
-        query.bindValue(":name", projectName);
-        query.bindValue(":desc", projectName);
-        query.bindValue(":cat", cat);
+        qInfo() << "[ProjectPage] initializing the database for this workspace";
+    }
 
-        if (! query.exec()) {
-            qWarning() << "[ProjectPage] Error: Failed to execute query:" << query.lastError().text();
+    auto query = db_->getBinder("INSERT INTO projects (name, description, category_id) VALUES (:name, :desc, :cat)");
+    query.bindValue(":name", projectName);
+    query.bindValue(":desc", projectName);
+    query.bindValue(":cat", cat);
 
-        }
+    if (! query.exec()) {
+        qWarning() << "[ProjectPage] Error: Failed to execute query:" << query.lastError().text();
+
     }
 
 }

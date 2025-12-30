@@ -155,6 +155,7 @@ qt_add_qml_module(appResearchManager
         Backend/workspacemodel.h Backend/workspacemodel.cpp
         Backend/templatemanager.h Backend/templatemanager.cpp
         QML_FILES ResearchManager/ProjectComponents/NoteViewer.qml
+        RESOURCES ResearchManager/images/icons8-dropbox-64.png ResearchManager/images/icons8-google-drive-64.png
 
 
 )
