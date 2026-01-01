@@ -155,7 +155,7 @@ void TaskManger::editTask(int index, const QString& title, const QString& descri
     if(query.exec())
     {
         setTaskDescription(description);
-        qInfo() << "[TaskManger] editTask success to update database " << title;
+        // qInfo() << "[TaskManger] editTask success to update database " << title;
     }
     else
     {
@@ -172,7 +172,7 @@ void TaskManger::deleteTasks()
         auto record = it.second;
         if(!record.checked)
             continue;
-        qInfo() << "[TaskManger]: deleteTask " << record.index;
+        // qInfo() << "[TaskManger]: deleteTask " << record.index;
         QString sqlCmd = QString("DELETE FROM tasks WHERE id = %1").arg(record.id);
         db_->deleteItem(sqlCmd);
     }
@@ -183,9 +183,9 @@ void TaskManger::deleteTasks()
 void TaskManger::updateCheckedBox(int index, bool value)
 {
     record_map_[index].checked = value;
-    for(const auto& it: record_map_)
-        if(it.second.checked)
-            qInfo() << "[TaskManger]: checked box index = " << it.second.index;
+    // for(const auto& it: record_map_)
+    //     if(it.second.checked)
+    //         qInfo() << "[TaskManger]: checked box index = " << it.second.index;
 }
 
 void TaskManger::moveItem(int from, int to)
@@ -250,7 +250,7 @@ void TaskManger::setTaskIndex(int newTaskIndex)
         return;
     m_taskIndex = newTaskIndex;
 
-    qInfo() << "[TaskManger] set task index " << m_taskIndex << " record id = " << record_map_[m_taskIndex].id;
+    // qInfo() << "[TaskManger] set task index " << m_taskIndex << " record id = " << record_map_[m_taskIndex].id;
 
     // read project description and update it
     setTaskTitle(record_map_[m_taskIndex].data);
@@ -275,7 +275,7 @@ void TaskManger::setTaskDescription(const QString &newTaskDescription)
         return;
     m_taskDescription = newTaskDescription;
     emit taskDescriptionChanged();
-    qInfo() << "[TaskManger] des " << newTaskDescription;
+    // qInfo() << "[TaskManger] des " << newTaskDescription;
 }
 
 QString TaskManger::taskTitle() const

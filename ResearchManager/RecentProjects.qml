@@ -262,8 +262,60 @@ Item {
                 Item{
                     // Calendar tab content
                     CalendarView{
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
+                        id: calView
+                        anchors.top: parent.top
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        height: parent.height * 0.5
+                        
+                        onShowDeadline: function(text) {
+                            deadlineRect.visible = true
+                            deadlineText.text = text
+                        }
+                        onHideDeadline: {
+                            deadlineRect.visible = false
+                        }
+                    }
+
+                    Rectangle{
+                        id: deadlineRect
+                        anchors.top: calView.bottom
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        height: parent.height * 0.1
+                        visible: false
+                        color: "#3c3c3c"
+                        border.color: "#555555"
+                        border.width: 1
+                        radius: 4
+                        
+                        TextInput {
+                            id: deadlineText
+                            anchors.fill: parent
+                            anchors.margins: 10
+                            font.pixelSize: 14
+                            color: "white"
+                            verticalAlignment: Text.AlignVCenter
+                            selectByMouse: true
+                            wrapMode: Text.WordWrap
+                        }
+                    }
+
+                    Rectangle{
+                        id: collaboratorView
+                        anchors.top: deadlineRect.bottom
+                        anchors.bottom: parent.bottom
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        color: "transparent"
+                        
+                        CollaboratorView{
+                            anchors.fill: parent
+                        }
+
+                        // color: "#3c3c3c"
+                        // border.color: "#555555"
+                        // border.width: 1
                     }
 
                 }

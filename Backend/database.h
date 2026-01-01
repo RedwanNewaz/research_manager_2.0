@@ -219,6 +219,7 @@ public:
             CREATE TABLE IF NOT EXISTS "contacts" (
                 "id" INTEGER NOT NULL,
                 "name" VARCHAR(200) NOT NULL,
+                "ON CONFLICT(name) DO UPDATE SET ",
                 "affiliation" VARCHAR(200),
                 "website" VARCHAR(500),
                 "phone" VARCHAR(50),

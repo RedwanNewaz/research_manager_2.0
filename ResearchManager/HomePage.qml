@@ -254,6 +254,14 @@ Rectangle {
             property string placeholderText: "Search here..."
             selectByMouse: true
             
+            Keys.onTabPressed: {
+                if (homepageModel.searchSuggestions.length > 0) {
+                    text = homepageModel.searchSuggestions[0]
+                    suggestionsPopup.close()
+                    event.accepted = true
+                }
+            }
+            
             // Trigger search on text change
             onTextChanged: {
                 if (text.length > 0) {

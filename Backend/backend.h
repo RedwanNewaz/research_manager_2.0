@@ -14,4 +14,5 @@
 #include "filedownloader.h"
 #include "contactsmodel.h"
 #include "aiconfig.h"
+#include "collaboratormodel.h"
 #endif // BACKEND_H

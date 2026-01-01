@@ -65,10 +65,12 @@ void CalendarView::setMonth(int m)
         int j = i + 1;
         int k = i + 2;
         int id_ = results[i].toInt();
+
+        if(!projectMap.contains(id_))
+            continue;
+
         auto timestamp = results[k].split(" ").front();
         auto event = QString("[%1]: %3 - %2").arg(projectMap[id_], results[j], timestamp);
-
-
 
         qInfo() << timestamp << event;
         deadline_dates_[timestamp].append(event);
@@ -109,12 +111,7 @@ bool CalendarView::isWeekend(int day) const
 bool CalendarView::hasDeadline(QString date) const
 {
 
-    if(deadline_dates_.contains(date))
-    {
-        qInfo() << "[CalendarView]: date " << date << " event = " << deadline_dates_[date];
-        return true;
-    }
-    return false;
+    return deadline_dates_.contains(date);
 }
 
 QString CalendarView::getEvent(int day) const
@@ -127,6 +124,5 @@ QString CalendarView::getEvent(int day) const
 
 void CalendarView::updateCalendarDB(const QString &db_path)
 {
-    qDebug() << "CalendarView initialized:" << m_date;
     setMonth(m_date.month());
 }

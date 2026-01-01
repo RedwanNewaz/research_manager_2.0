@@ -3,11 +3,8 @@ import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 
 Item {
-    id: root
     width: parent.width
-    height: parent.height / 3
-    anchors.top: parent.top
-    // anchors.fill: parent
+    clip: true
 
     // Calendar state
     property int currentDay: new Date().getDay()
@@ -15,18 +12,22 @@ Item {
     property int currentYear: new Date().getFullYear()
     property int currentMonth: new Date().getMonth() + 1  // 1-12
     property var daysInWeek: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    
+    // Expose signal for deadline event display
+    signal showDeadline(string text)
+    signal hideDeadline()
 
 
 
-    Column {
-        anchors.top: parent.top
-        anchors.horizontalCenter: parent.horizontalCenter
+    ColumnLayout {
+        anchors.fill: parent
+        anchors.margins: 0
 
-        spacing: 10
+        // spacing: 10
 
         RowLayout {
-            spacing: 10
-            width: parent.width
+            Layout.fillWidth: true
+            // spacing: 10
 
             // Previous button
             Button {
@@ -71,18 +72,18 @@ Item {
 
         // Day labels
         Row {
+            Layout.alignment: Qt.AlignHCenter
             spacing: 4
-            anchors.horizontalCenter: parent.horizontalCenter
             Repeater {
                 model: daysInWeek
                 Rectangle {
-                    width: 56
-                    height: 56
+                    width: 50
+                    height: 40
                     color: "transparent"
                     Text {
                         anchors.centerIn: parent
                         text: modelData
-                        font.pointSize: 16
+                        font.pointSize: 12
                         color: "white"
                         font.bold: true
 
@@ -93,16 +94,16 @@ Item {
 
         // Calendar grid
         Grid {
+            Layout.alignment: Qt.AlignHCenter
             columns: 7
             spacing: 4
-            anchors.horizontalCenter: parent.horizontalCenter
 
             // Empty cells for days before month starts
             Repeater {
                 model: getFirstDayOfMonth()
                 Rectangle {
-                    width: 56
-                    height: 56
+                    width: 50
+                    height: 50
                     color: "transparent"
                 }
             }
@@ -111,9 +112,9 @@ Item {
             Repeater {
                 model: daysInMonth()
                 Rectangle {
-                    width: 56
-                    height: 56
-                    radius: 6
+                    width: 50
+                    height: 50
+                    radius: 5
                     color: isWeekend(index + 1) ? "#ffcccc" : "#e0e0e0"
                     border.color: hasDeadline(currentYear, currentMonth, index + 1) + 0 * calModel.month ? "#ff0000" : "transparent"
                     border.width: 2
@@ -123,7 +124,7 @@ Item {
                     Text {
                         anchors.centerIn: parent
                         text: index + 1
-                        font.pointSize: 14
+                        font.pointSize: 12
                         color: today ? "#008080" : "black"
                         // font.bold: (deadlines[index + 1] || today) ? true : false
                         font.bold: isSpecialDay(currentYear, currentMonth, index + 1) + 0 * calModel.month
@@ -133,43 +134,20 @@ Item {
                         anchors.fill: parent
                         onClicked: {
                             console.log("Clicked day event: ", calModel.getEvent(index + 1))
-                            deadlineText.text = calModel.getEvent(index + 1)
+                            showDeadline(calModel.getEvent(index + 1))
                         }
                         onEntered: {
-                            deadlineRect.visible = true
-                            deadlineText.text = calModel.getEvent(index + 1)
+                            showDeadline(calModel.getEvent(index + 1))
                         }
 
                         // This is called when the mouse leaves the area of 'parentItem'
                         onExited: {
-                            deadlineRect.visible = false
+                            hideDeadline()
                         }
                     }
                 }
             }
         }
-
-        Rectangle{
-            id: deadlineRect
-            width: parent.width
-            height: parent.height / 5
-            visible: false
-            color: "#3c3c3c"
-            border.color: "#555555"
-            border.width: 1
-            radius: 4
-            TextInput {
-                id: deadlineText
-                anchors.fill: parent
-                anchors.margins: 10
-                font.pixelSize: 14
-                color: "white"
-                verticalAlignment: Text.AlignVCenter
-                selectByMouse: true
-                wrapMode: "WordWrap"
-            }
-        }
-
     }
 
     // Helper functions

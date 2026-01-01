@@ -5,6 +5,7 @@ using namespace project;
 namespace {
 static const char *kCreateTableSql = R"(
     CREATE TABLE IF NOT EXISTS "Contacts" (
+        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "name" TEXT NOT NULL,
         "affiliation" TEXT,
         "website" TEXT,
@@ -12,8 +13,7 @@ static const char *kCreateTableSql = R"(
         "email" TEXT NOT NULL,
         "zoom" TEXT,
         "photo" TEXT,
-        UNIQUE("name"),
-        PRIMARY KEY("name")
+        UNIQUE("name")
     )
 )";
 }

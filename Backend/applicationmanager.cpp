@@ -99,6 +99,7 @@ ApplicationManager::~ApplicationManager()
     delete m_project;
     delete m_templateProject;
     delete m_homepage;
+    delete m_colModel;
     
     delete m_engine;
 }
@@ -255,6 +256,7 @@ bool ApplicationManager::ensureConfigDatabaseTables(const QString &configPath)
     // Ensure other tables exist
     query.exec("CREATE TABLE IF NOT EXISTS Workspace (name TEXT, database TEXT, workspace TEXT, icon TEXT)");
     query.exec("CREATE TABLE IF NOT EXISTS Contacts ("
+               "id INTEGER PRIMARY KEY AUTOINCREMENT,"
                "name TEXT NOT NULL,"
                "affiliation TEXT,"
                "website TEXT,"
@@ -263,7 +265,6 @@ bool ApplicationManager::ensureConfigDatabaseTables(const QString &configPath)
                "zoom TEXT,"
                "photo TEXT,"
                "UNIQUE(name),"
-               "PRIMARY KEY(name)"
                ")");
     
     configDb.close();
@@ -304,6 +305,9 @@ void ApplicationManager::initializeModels()
     m_contactsModel = new project::ContactsModel(m_configDb->getSharedPtr(), m_engine);
     m_contactsModel->load_database();
 
+    // collaborator model
+    m_colModel = new project::CollaboratorModel(m_researchDb->getSharedPtr(), m_engine);
+
     // AI Config model uses config database
     m_aiConfig = new AiConfig(m_configDb->getSharedPtr(), m_engine);
 
@@ -330,6 +334,12 @@ void ApplicationManager::setupSignalConnections()
                      m_lnModel, SLOT(projectIdChanged(int)));
     QObject::connect(m_project, SIGNAL(projectIdChanged(int)),
                      m_dlModel, SLOT(projectIdChanged(int)));
+
+    QObject::connect(m_project, SIGNAL(projectIdChanged(int)),
+                     m_colModel, SLOT(projectIdChanged(int)));
+
+
+
     QObject::connect(m_project, SIGNAL(projectRootDir(QString)),
                      m_fsWrapper, SLOT(setRootDir(QString)));
     QObject::connect(m_project, SIGNAL(projectRootDir(QString)),
@@ -371,6 +381,7 @@ void ApplicationManager::registerContextProperties()
     context->setContextProperty("flModel", reinterpret_cast<QObject*>(m_flModel));
     context->setContextProperty("calModel", reinterpret_cast<QObject*>(m_calModel));
     context->setContextProperty("dlModel", reinterpret_cast<QObject*>(m_dlModel));
+    context->setContextProperty("colModel", reinterpret_cast<QObject*>(m_colModel));
     context->setContextProperty("fileDownloader", reinterpret_cast<QObject*>(m_fileDownloader));
     context->setContextProperty("pcModel", reinterpret_cast<QObject*>(m_contactsModel));
     context->setContextProperty("aiConfig", reinterpret_cast<QObject*>(m_aiConfig));
