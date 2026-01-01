@@ -172,6 +172,7 @@ void CollaboratorModel::updateTagName(int index, const QString &tag)
     query.bindValue(":tag", tag);
     query.bindValue(":id", col.id);
     query.exec();
+    col_map_[index].tag_name = tag;
 }
 
 QStringList CollaboratorModel::getTaskTitles() const
