@@ -6,6 +6,11 @@ import Qt5Compat.GraphicalEffects
 
 
 Item{
+    id: root
+    
+    // Signal emitted when a collaborator is selected for editing
+    signal openTagViewer(string collaboratorName)
+    
     property string name: ""
     property string affiliation: ""
     property string website: ""
@@ -251,6 +256,9 @@ Item{
                         }
                         onDoubleClicked: {
                             console.log("onDoubleClicked show contact details")
+                            // Find the root Item by traversing up the hierarchy
+                            colModel.currentName = name;
+                            tagViewer.open()
 
                         }
                     }

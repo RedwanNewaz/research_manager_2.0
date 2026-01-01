@@ -81,7 +81,7 @@ Item {
                 anchors.right: taskListRect.right
                 width: parent.width - 40
                 spacing: 15
-                
+
                 RoundButton {
                     id: buttonAdd
                     Layout.preferredWidth: 100
@@ -267,7 +267,7 @@ Item {
                         anchors.left: parent.left
                         anchors.right: parent.right
                         height: parent.height * 0.5
-                        
+
                         onShowDeadline: function(text) {
                             deadlineRect.visible = true
                             deadlineText.text = text
@@ -288,7 +288,7 @@ Item {
                         border.color: "#555555"
                         border.width: 1
                         radius: 4
-                        
+
                         TextInput {
                             id: deadlineText
                             anchors.fill: parent
@@ -301,6 +301,10 @@ Item {
                         }
                     }
 
+                    TagViewer{
+                        id: tagViewer
+                    }
+
                     Rectangle{
                         id: collaboratorView
                         anchors.top: deadlineRect.bottom
@@ -308,9 +312,10 @@ Item {
                         anchors.left: parent.left
                         anchors.right: parent.right
                         color: "transparent"
-                        
+
                         CollaboratorView{
                             anchors.fill: parent
+
                         }
 
                         // color: "#3c3c3c"

@@ -15,6 +15,11 @@ void CollaboratorModel::projectIdChanged(int newId)
     // Clear the old data when switching projects
     beginResetModel();
     col_map_.clear();
+    task_map_.clear();
+    setMsgDescription("");
+    setCurrentName("");
+    setCurrentTag("");
+    setMsgComboList(QVariant());
     endResetModel();
 }
 
@@ -40,6 +45,7 @@ int CollaboratorModel::rowCount(const QModelIndex &parent) const
 
     // Clear existing data before repopulating
     col_map_.clear();
+
     
     auto query = QString("SELECT id, name, tag_name, photo FROM collaborators WHERE project_id = %1").arg(m_projectID);
     auto results = db_->queryRow(query);
@@ -168,6 +174,28 @@ void CollaboratorModel::updateTagName(int index, const QString &tag)
     query.exec();
 }
 
+QStringList CollaboratorModel::getTaskTitles() const
+{
+    QStringList titles;
+    for(int i = 0; i < task_map_.size(); ++i) {
+        if(task_map_.contains(i)) {
+            titles.append(task_map_[i].title);
+        }
+    }
+    qInfo() << "[titles] " << titles;
+    qInfo() << task_map_.size();
+    return titles;
+}
+
+void CollaboratorModel::setTaskDescription(int index)
+{
+    if(!task_map_.contains(index))
+        return;
+    setMsgDescription(task_map_[index].desc);
+}
+
+
+
 QHash<int, QByteArray> CollaboratorModel::roleNames() const
 {
     return {
@@ -175,4 +203,121 @@ QHash<int, QByteArray> CollaboratorModel::roleNames() const
         {Tag, "tag"},
         {Photo, "photo"}
     };
+}
+
+QString CollaboratorModel::currentName() const
+{
+    return m_currentName;
+}
+
+void CollaboratorModel::setCurrentName(const QString &newCurrentName)
+{
+    if (m_currentName == newCurrentName)
+        return;
+    m_currentName = newCurrentName;
+
+    int selectedIndex = -1;
+    for (auto const& [key, data] : col_map_.asKeyValueRange()) {
+        if(data.name == newCurrentName)
+        {
+            selectedIndex = key;
+            break;
+        }
+    }
+
+    qInfo() << "[CollaboratorModel] selected Index " << selectedIndex;
+    emit currentNameChanged();
+    if(selectedIndex < 0)
+        return;
+
+
+    auto query = db_->getBinder(
+        "SELECT title, description FROM tasks "
+        "WHERE project_id = :id AND title LIKE :tag "
+        "ORDER BY timestamp DESC"
+        );
+
+    // 2. Bind the ID normally
+    query.bindValue(":id", m_projectID);
+
+    // 3. Prep the tag with the % wildcard BEFORE binding
+    // This creates a "starts with" search if you use "tag%"
+    // or "ends with" if you use "%tag"
+    QString tagSearch = "%" + col_map_[selectedIndex].tag_name + "%";
+    query.bindValue(":tag", tagSearch);
+
+    setCurrentTag(col_map_[selectedIndex].tag_name);
+
+    task_map_.clear();
+    int index = 0;
+    QStringList taskList;
+    if(query.exec())
+    {
+        while (query.next()) {
+
+            TaskData task;
+            task.title = query.value("title").toString();
+            task.desc = query.value("description").toString();
+            task_map_[index] = task;
+            index++;
+            taskList << task.title;
+
+            qInfo() << "[CollaboratorModel]" << task.title;
+        }
+    }
+
+    // emit layoutChanged();
+    setMsgComboList(taskList);
+    setTaskDescription(0);
+
+}
+
+QVariant CollaboratorModel::msgComboList() const
+{
+    return m_msgComboList;
+}
+
+void CollaboratorModel::setMsgComboList(const QVariant &newMsgComboList)
+{
+    if (m_msgComboList == newMsgComboList)
+        return;
+    m_msgComboList = newMsgComboList;
+    emit msgComboListChanged();
+}
+
+QString CollaboratorModel::msgDescription() const
+{
+    return m_msgDescription;
+}
+
+void CollaboratorModel::setMsgDescription(const QString &newMsgDescription)
+{
+    if (m_msgDescription == newMsgDescription)
+        return;
+    m_msgDescription = newMsgDescription;
+    emit msgDescriptionChanged();
+}
+
+QString CollaboratorModel::currentTag() const
+{
+    return m_currentTag;
+}
+
+void CollaboratorModel::setCurrentTag(const QString &newCurrentTag)
+{
+    if (m_currentTag == newCurrentTag)
+        return;
+
+    for(int i = 0; i < col_map_.size(); ++i )
+    {
+        if(col_map_[i].tag_name == m_currentTag)
+        {
+            updateTagName(i, newCurrentTag);
+            break;
+        }
+    }
+
+    m_currentTag = newCurrentTag;
+
+    emit currentTagChanged();
 }

@@ -158,6 +158,7 @@ qt_add_qml_module(appResearchManager
         RESOURCES ResearchManager/images/icons8-dropbox-64.png ResearchManager/images/icons8-google-drive-64.png
         QML_FILES ResearchManager/ProjectComponents/CollaboratorView.qml
         SOURCES Backend/collaboratormodel.h Backend/collaboratormodel.cpp
+        QML_FILES ResearchManager/ProjectComponents/TagViewer.qml
 
 
 )
