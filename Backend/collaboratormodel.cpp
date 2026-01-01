@@ -171,8 +171,10 @@ void CollaboratorModel::updateTagName(int index, const QString &tag)
     auto query = db_->getBinder("UPDATE collaborators SET tag_name = :tag WHERE id = :id");
     query.bindValue(":tag", tag);
     query.bindValue(":id", col.id);
-    query.exec();
-    col_map_[index].tag_name = tag;
+    if(!query.exec())
+        qWarning() << "[CollaboratorModel] " << query.lastError();
+    projectIdChanged(m_projectID);
+    emit layoutChanged();
 }
 
 QStringList CollaboratorModel::getTaskTitles() const
@@ -227,11 +229,11 @@ void CollaboratorModel::setCurrentName(const QString &newCurrentName)
     }
 
     qInfo() << "[CollaboratorModel] selected Index " << selectedIndex;
-    emit currentNameChanged();
+
     if(selectedIndex < 0)
         return;
 
-
+    emit currentNameChanged();
     auto query = db_->getBinder(
         "SELECT title, description FROM tasks "
         "WHERE project_id = :id AND title LIKE :tag "
