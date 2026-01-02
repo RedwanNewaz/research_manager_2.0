@@ -5,7 +5,7 @@ set -e
 # CONFIG
 # ----------------------------
 APPNAME=${1:-appResearchManager}           # The actual binary name
-BUILD_DIR=../build/Desktop_Qt_6_10_1-Debug
+BUILD_DIR=../build/Desktop_Qt_6_10_1-MinSizeRel
 APPDIR=AppDir
 
 # ----------------------------
@@ -116,12 +116,12 @@ fi
 # 5. Temporarily hide problematic SQL drivers
 # ----------------------------
 echo "==> Backing up problematic SQL drivers"
-if [ -x /home/airlab/Qt/6.10.1/gcc_64/bin/qmake ]; then
-    export QMAKE=/home/airlab/Qt/6.10.1/gcc_64/bin/qmake
-    QT_PLUGINS_DIR=/home/airlab/Qt/6.10.1/gcc_64/plugins
-elif [ -x /home/airlab/Qt/6.10.1/clang_64/bin/qmake ]; then
-    export QMAKE=/home/airlab/Qt/6.10.1/clang_64/bin/qmake
-    QT_PLUGINS_DIR=/home/airlab/Qt/6.10.1/clang_64/plugins
+if [ -x $HOME/Qt/6.10.1/gcc_64/bin/qmake ]; then
+    export QMAKE=$HOME/Qt/6.10.1/gcc_64/bin/qmake
+    QT_PLUGINS_DIR=$HOME/Qt/6.10.1/gcc_64/plugins
+elif [ -x $HOME/Qt/6.10.1/clang_64/bin/qmake ]; then
+    export QMAKE=$HOME/Qt/6.10.1/clang_64/bin/qmake
+    QT_PLUGINS_DIR=$HOME/Qt/6.10.1/clang_64/plugins
 else
     echo "ERROR: qmake not found for Qt 6.10.1" >&2
     exit 1

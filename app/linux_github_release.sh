@@ -11,7 +11,7 @@ REPO_NAME="research_manager_2.0"
 if [ -n "$1" ]; then
     VERSION="$1"
 else
-    VERSION="linux-0.5.3-$(date +%Y%m%d-%H%M%S)"
+    VERSION="linux-v0.6.0"
 fi
 
 echo "🚀 Preparing release for version: $VERSION"
