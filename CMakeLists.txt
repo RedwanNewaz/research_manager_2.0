@@ -159,6 +159,7 @@ qt_add_qml_module(appResearchManager
         QML_FILES ResearchManager/ProjectComponents/CollaboratorView.qml
         SOURCES Backend/collaboratormodel.h Backend/collaboratormodel.cpp
         QML_FILES ResearchManager/ProjectComponents/TagViewer.qml
+        SOURCES Backend/messageviewer.h Backend/messageviewer.cpp
 
 
 )

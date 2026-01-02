@@ -25,7 +25,12 @@ namespace project {
     class DeadlineModel;
     class FileIconProvider;
     class FileDownloader;
+
+}
+
+namespace collab {
     class CollaboratorModel;
+    class MessageViewer;
 }
 
 namespace homepage {
@@ -127,7 +132,8 @@ private:
     project::DeadlineModel *m_dlModel;
     project::FileDownloader *m_fileDownloader;
     project::ContactsModel *m_contactsModel;
-    project::CollaboratorModel *m_colModel;
+    collab::CollaboratorModel *m_colModel;
+    collab::MessageViewer *m_msgModel;
     AiConfig *m_aiConfig;
 };
 

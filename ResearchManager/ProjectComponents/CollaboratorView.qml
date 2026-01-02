@@ -257,7 +257,7 @@ Item{
                         onDoubleClicked: {
                             console.log("onDoubleClicked show contact details")
                             // Find the root Item by traversing up the hierarchy
-                            colModel.currentName = name;
+                            msgModel.currentName = name;
                             tagViewer.open()
 
                         }

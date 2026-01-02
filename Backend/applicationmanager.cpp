@@ -100,6 +100,7 @@ ApplicationManager::~ApplicationManager()
     delete m_templateProject;
     delete m_homepage;
     delete m_colModel;
+    delete m_msgModel;
     
     delete m_engine;
 }
@@ -306,8 +307,8 @@ void ApplicationManager::initializeModels()
     m_contactsModel->load_database();
 
     // collaborator model
-    m_colModel = new project::CollaboratorModel(m_researchDb->getSharedPtr(), m_engine);
-
+    m_colModel = new collab::CollaboratorModel(m_researchDb->getSharedPtr(), m_engine);
+    m_msgModel = new collab::MessageViewer(m_researchDb->getSharedPtr(), m_engine);
     // AI Config model uses config database
     m_aiConfig = new AiConfig(m_configDb->getSharedPtr(), m_engine);
 
@@ -337,6 +338,8 @@ void ApplicationManager::setupSignalConnections()
 
     QObject::connect(m_project, SIGNAL(projectIdChanged(int)),
                      m_colModel, SLOT(projectIdChanged(int)));
+    QObject::connect(m_project, SIGNAL(projectIdChanged(int)),
+                     m_msgModel, SLOT(projectIdChanged(int)));
 
 
 
@@ -382,6 +385,7 @@ void ApplicationManager::registerContextProperties()
     context->setContextProperty("calModel", reinterpret_cast<QObject*>(m_calModel));
     context->setContextProperty("dlModel", reinterpret_cast<QObject*>(m_dlModel));
     context->setContextProperty("colModel", reinterpret_cast<QObject*>(m_colModel));
+    context->setContextProperty("msgModel", reinterpret_cast<QObject*>(m_msgModel));
     context->setContextProperty("fileDownloader", reinterpret_cast<QObject*>(m_fileDownloader));
     context->setContextProperty("pcModel", reinterpret_cast<QObject*>(m_contactsModel));
     context->setContextProperty("aiConfig", reinterpret_cast<QObject*>(m_aiConfig));

@@ -15,4 +15,5 @@
 #include "contactsmodel.h"
 #include "aiconfig.h"
 #include "collaboratormodel.h"
+#include "messageviewer.h"
 #endif // BACKEND_H

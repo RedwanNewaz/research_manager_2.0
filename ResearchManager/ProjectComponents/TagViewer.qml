@@ -14,6 +14,16 @@ Popup {
     // Center the popup on screen
     anchors.centerIn: Overlay.overlay
 
+    onOpened: {
+        // Initialize description when popup opens
+        taskTitleComboBox.currentIndex = 0
+        if (msgModel.rowCount() > 0) {
+            msgDescriptionContainer.currentDescription = msgModel.data(msgModel.index(0, 0), 259)
+            tagTxt.text = msgModel.data(msgModel.index(0, 0), 258)
+            console.log("[Popup] Initialized with description:", msgDescriptionContainer.currentDescription)
+        }
+    }
+
     background: Rectangle {
         color: "transparent"
     }
@@ -89,7 +99,7 @@ Popup {
                 }
 
                 Label {
-                    text: colModel.currentName
+                    text: msgModel.currentName
                     font.pixelSize: 28
                     font.bold: true
                     font.weight: Font.DemiBold
@@ -127,6 +137,8 @@ Popup {
 
                         onClicked: {
                             console.log("Cancel clicked")
+                            msgDescriptionContainer.currentDescription = ""
+                            tagTxt.text = ""
                             tagView.close()
                         }
                     }
@@ -168,14 +180,14 @@ Popup {
                     TextInput {
                         id: tagTxt
                         anchors.centerIn: parent
-                        text: colModel.currentTag
                         font.pixelSize: 14
                         font.weight: Font.Medium
                         font.bold: true
                         color: "white"
                         onAccepted: {
-                            colModel.currentTag = tagTxt.text
-                            tagUpdated = true
+                            msgDescriptionContainer.currentDescription = ""
+                            tagTxt.text = ""
+
                             tagView.close()
                         }
                     }
@@ -190,14 +202,19 @@ Popup {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 52
 
-                model: colModel.msgComboList
+                model: msgModel
+                textRole: "subject"  // Use the subject role from msgModel
                 currentIndex: 0
 
                 font.pixelSize: 16
                 font.weight: Font.Bold
 
                 onCurrentIndexChanged: {
-                    colModel.setTaskDescription(currentIndex)
+                    if (currentIndex >= 0 && msgModel.rowCount() > 0) {
+                        msgDescriptionContainer.currentDescription = msgModel.data(msgModel.index(currentIndex, 0), 259)
+                        tagTxt.text = msgModel.data(msgModel.index(currentIndex, 0), 258)
+                        console.log("[ComboBox] Selected task title:", currentIndex, "Description:", msgDescriptionContainer.currentDescription)
+                    }
                 }
 
                 background: Rectangle {
@@ -269,7 +286,7 @@ Popup {
                 delegate: ItemDelegate {
                     width: taskTitleComboBox.width - 8
                     contentItem: Text {
-                        text: modelData
+                        text: subject  // Access the 'subject' role from msgModel
                         color: "#2d3748"
                         font: taskTitleComboBox.font
                         elide: Text.ElideRight
@@ -291,6 +308,8 @@ Popup {
             }
             // Text Area with modern styling
             Rectangle {
+                id: msgDescriptionContainer
+                property string currentDescription: ""
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 color: "#ffffff"
@@ -322,7 +341,7 @@ Popup {
                         wrapMode: TextArea.Wrap
                         selectByMouse: true
                         padding: 15
-                        text: colModel.msgDescription
+                        text: msgDescriptionContainer.currentDescription
                         placeholderTextColor: "#a0aec0"
 
                         background: Rectangle {
