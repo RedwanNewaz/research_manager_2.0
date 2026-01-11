@@ -24,10 +24,7 @@ Item {
         title: "Select Config Database File"
         nameFilters: ["Database Files (*.db)", "All Files (*)"]
         onAccepted: {
-            var path = selectedFile.toString()
-            path = path.replace(/^(file:\/{3})/, "")
-            path = path.replace(/^(file:\/)/, "")
-            path = "/" + path
+            var path = selectedFile.toLocalFile()
             settingsManager.setConfigDatabasePath(path)
         }
     }
