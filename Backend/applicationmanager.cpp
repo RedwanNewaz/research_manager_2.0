@@ -11,6 +11,7 @@
 #include <QMessageBox>
 #include <QStandardPaths>
 #include <QTimer>
+#include <QFileInfo>
 
 using namespace project;
 
@@ -26,8 +27,16 @@ QString SettingsManager::getConfigDatabasePath() const
     return m_settings.value("configDatabasePath", "").toString();
 }
 
-void SettingsManager::setConfigDatabasePath(const QString &path)
+void SettingsManager::setConfigDatabasePath(const QString &raw_path)
 {
+    QFileInfo info(raw_path);
+    QString path; 
+     if (info.exists()) {
+        path = raw_path;
+    } else {
+        path = "/" + raw_path;
+    }
+    
     if (path != getConfigDatabasePath()) {
         m_settings.setValue("configDatabasePath", path);
         m_settings.sync();
