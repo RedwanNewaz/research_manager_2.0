@@ -107,10 +107,15 @@ QString LinkViewer::getWebsiteName(const QString &urlString)
 
 void LinkViewer::checkData(int index, bool value)
 {
-
     if(!web_map_.contains(index))
         return;
+
     web_map_[index].checked = value;
+
+    // Notify view that this item has changed
+    QModelIndex modelIndex = createIndex(index, 0);
+    emit dataChanged(modelIndex, modelIndex, {CheckBoxRole});
+
     // debug purposes only
     for(const auto& val:web_map_.values())
         if(val.checked)
@@ -151,22 +156,55 @@ void LinkViewer::addLink(const QString &rlink)
 
 void LinkViewer::deleteLinks()
 {
-    for(const auto& web: web_map_.values())
-    {
-        if(!web.checked)
-            continue;
+    QList<int> indicesToRemove;
+    QList<int> idsToDelete;
 
-        QString sqlCmd = QString("DELETE FROM links WHERE id = %1").arg(web.id);
-        if(db_->deleteItem(sqlCmd))
+    // Collect indices and IDs to delete
+    for(const auto& pair : web_map_.toStdMap())
+    {
+        if(pair.second.checked)
         {
-            qInfo() << "[TaskManger] success ";
-        }
-        else{
-            qInfo() << sqlCmd;
+            indicesToRemove.append(pair.first);
+            idsToDelete.append(pair.second.id);
         }
     }
 
-    emit layoutChanged();
+    if(idsToDelete.isEmpty())
+        return;
+
+    // Delete from database
+    for(int id : idsToDelete)
+    {
+        QString sqlCmd = QString("DELETE FROM links WHERE id = %1").arg(id);
+        if(db_->deleteItem(sqlCmd))
+        {
+            qInfo() << "[LinkViewer] deleted link id " << id;
+        }
+        else{
+            qInfo() << "Failed to delete link: " << sqlCmd;
+        }
+    }
+
+    // Remove from model in reverse order to maintain indices
+    std::sort(indicesToRemove.begin(), indicesToRemove.end(), std::greater<int>());
+    for(int index : indicesToRemove)
+    {
+        beginRemoveRows(QModelIndex(), index, index);
+        web_map_.remove(index);
+        endRemoveRows();
+    }
+
+    // Update remaining indices
+    QMap<int, WebData> updatedMap;
+    int newIndex = 0;
+    for(const auto& web : web_map_)
+    {
+        WebData updatedWeb = web;
+        updatedWeb.index = newIndex;
+        updatedMap[newIndex] = updatedWeb;
+        newIndex++;
+    }
+    web_map_ = updatedMap;
 }
 
 bool LinkViewer::anyCheck()

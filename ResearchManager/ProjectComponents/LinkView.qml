@@ -84,17 +84,17 @@ Rectangle {
                         anchors.margins: 5
                         spacing: 10
 
-                        CheckBox {
-                            id: linkChecker
-                            onCheckedChanged:{
-                                console.log("[LinkModel] index = ", index, " checked = ", checked)
-                                lnModel.checkData(index, checked)
-                                if(lnModel.anyCheck())
-                                    addLinkBtn.icon.source = "qrc:/ResearchManager/ResearchManager/images/delete.svg";
-                                else
-                                    addLinkBtn.icon.source = "qrc:/ResearchManager/ResearchManager/images/send.svg"
-                            }
-                        }
+                         CheckBox {
+                             id: linkChecker
+                             onCheckedChanged:{
+                                 console.log("[LinkModel] index = ", index, " checked = ", checked)
+                                 lnModel.checkData(index, checked)
+                                 if(lnModel.anyCheck())
+                                     addLinkBtn.icon.source = "qrc:/ResearchManager/ResearchManager/images/delete.svg";
+                                 else
+                                     addLinkBtn.icon.source = "qrc:/ResearchManager/ResearchManager/images/send.svg"
+                             }
+                         }
 
 
 
@@ -167,12 +167,15 @@ Rectangle {
 
         // ----------Connections ------
 
-        Connections {
+Connections {
             target: addLinkBtn
             function onClicked() {
+                console.log("Button clicked, anyCheck:", lnModel.anyCheck())
                 if (lnModel.anyCheck()) {
-                    console.log("delete link item " + linkViewer.taskIndex.toString())
+                    console.log("delete link items")
                     lnModel.deleteLinks()
+                    // Reset button icon after deletion
+                    addLinkBtn.icon.source = "qrc:/ResearchManager/ResearchManager/images/send.svg"
 
                 } else if(textLinkInput.text !== "") {
                     console.log("link button pressed " + textLinkInput.text)
