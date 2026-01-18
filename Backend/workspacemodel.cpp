@@ -172,6 +172,30 @@ bool WorkspaceModel::createWorkspace(const QVariantMap &data)
         return false;
     }
 
+    // Create default categories for new workspace
+    DatabaseManager researchDb("tempResearch", database);
+    if (!researchDb.connect(database)) {
+        qWarning() << "[WorkspaceModel] Failed to connect to research database for category initialization";
+        return false;
+    }
+
+    // Insert default categories
+    QStringList defaultCategories = {"Research Projects", "Publications", "Presentations", "Grants & Funding", "Teaching", "Service"};
+    for (int i = 0; i < defaultCategories.size(); ++i) {
+        auto categoryQuery = researchDb.getBinder(
+            "INSERT INTO categories (id, name, year_id) VALUES (:id, :name, :year)"
+        );
+        categoryQuery.bindValue(":id", i + 1);
+        categoryQuery.bindValue(":name", defaultCategories[i]);
+        categoryQuery.bindValue(":year", 0); // year_id can be 0 for general categories
+        if (!categoryQuery.exec()) {
+            qWarning() << "[WorkspaceModel] Failed to insert default category:" << defaultCategories[i]
+                      << categoryQuery.lastError().text();
+        }
+    }
+
+    qInfo() << "[WorkspaceModel] Created" << defaultCategories.size() << "default categories for workspace";
+
     // --- 2. Construct the SQL Command using QString::arg() ---
 
     // QString sqlCmd = QString(

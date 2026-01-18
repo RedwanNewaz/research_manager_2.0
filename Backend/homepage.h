@@ -53,8 +53,9 @@ private:
     DbmPtr db_;
     QStringList m_searchSuggestions;
     QStringList m_allProjects;
-    
+
     void updateProjectsList();
+    void ensureDefaultCategories();
 
 };
 

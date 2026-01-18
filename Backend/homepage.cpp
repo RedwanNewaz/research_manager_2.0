@@ -9,35 +9,34 @@ namespace homepage{
 
     }
 
-    int ProjectView::rowCount(const QModelIndex &parent) const
+int ProjectView::rowCount(const QModelIndex &parent) const
+{
+    if (parent.isValid())
+        return 0;
+
+    QString sql = "SELECT name, id FROM categories";
+    auto cat_response = db_->queryRow(sql);
+
+    QMap<int, QString> catMap;
+    for(int i =0; i < cat_response.size(); i+= 2)
     {
-        if (parent.isValid())
-            return 0;
-
-        QString sql = "SELECT name, id FROM categories";
-        auto cat_response = db_->queryRow(sql);
-
-        QMap<int, QString> catMap;
-        for(int i =0; i < cat_response.size(); i+= 2)
-        {
-            int j = i + 1;
-            catMap[cat_response[j].toInt()] = cat_response[i];
-        }
-
-
-        data_.clear();
-        sql = "SELECT name, category_id FROM projects";
-        auto project_response = db_->queryRow(sql);
-        for(int i =0; i < project_response.size(); i+=2)
-        {
-            int j = i + 1;
-            auto cat = catMap[project_response[j].toInt()];
-            data_[cat] << project_response[i];
-        }
-
-        // qInfo() << "Projects have following data \n" << data_;
-        return data_.size();
+        int j = i + 1;
+        catMap[cat_response[j].toInt()] = cat_response[i];
     }
+
+    data_.clear();
+    sql = "SELECT name, category_id FROM projects";
+    auto project_response = db_->queryRow(sql);
+    for(int i =0; i < project_response.size(); i+=2)
+    {
+        int j = i + 1;
+        auto cat = catMap[project_response[j].toInt()];
+        data_[cat] << project_response[i];
+    }
+
+    // qInfo() << "Projects have following data \n" << data_;
+    return data_.size();
+}
 
     QVariant ProjectView::data(const QModelIndex &index, int role) const
     {
@@ -94,10 +93,43 @@ namespace homepage{
     {
         qInfo() << "[ProjectView]: setReserachDB " << db_path;
         db_->connect(db_path);
+        ensureDefaultCategories();
         updateProjectsList();
         emit layoutChanged();
     }
-    
+
+    void ProjectView::ensureDefaultCategories()
+    {
+        // Check if categories already exist
+        QString checkSql = "SELECT COUNT(*) FROM categories";
+        auto result = db_->queryRow(checkSql);
+        if (!result.isEmpty() && result[0].toInt() > 0) {
+            qInfo() << "[ProjectView]: Categories already exist, skipping initialization";
+            return;
+        }
+
+        // Create default categories for existing databases
+        QStringList defaultCategories = {"Research Projects", "Publications", "Presentations", "Grants & Funding", "Teaching", "Service"};
+
+        for (int i = 0; i < defaultCategories.size(); ++i) {
+            auto query = db_->getBinder(
+                "INSERT INTO categories (id, name, year_id) VALUES (:id, :name, :year)"
+            );
+            query.bindValue(":id", i + 1);
+            query.bindValue(":name", defaultCategories[i]);
+            query.bindValue(":year", 0); // year_id can be 0 for general categories
+
+            if (!query.exec()) {
+                qWarning() << "[ProjectView] Failed to insert default category:" << defaultCategories[i]
+                          << query.lastError().text();
+            } else {
+                qInfo() << "[ProjectView] Added default category:" << defaultCategories[i];
+            }
+        }
+
+        qInfo() << "[ProjectView] Initialized" << defaultCategories.size() << "default categories for existing database";
+    }
+
     void ProjectView::searchProjects(const QString &searchText)
     {
         m_searchSuggestions.clear();

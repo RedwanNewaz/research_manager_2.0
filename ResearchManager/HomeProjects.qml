@@ -67,17 +67,19 @@ ScrollView {
                             color: "#ddd"
                         }
 
-                        // GridView for folders
-                        GridView {
-                            id: folderGrid
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
+                         // GridView for folders
+                         GridView {
+                             id: folderGrid
+                             Layout.fillWidth: true
+                             Layout.fillHeight: true
 
-                            // Responsive cell sizing
-                            cellWidth: 150
-                            cellHeight: 150
-                            interactive: false  // Disable independent scrolling
-                            model: getCategoryModel(category)
+                             // Responsive cell sizing
+                             cellWidth: 150
+                             cellHeight: 150
+                             interactive: false  // Disable independent scrolling
+                             model: getCategoryModel(category)
+
+
 
 
 
