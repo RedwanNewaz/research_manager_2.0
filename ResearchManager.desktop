@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Research Manager
+Comment=A comprehensive research project management application
+Exec=ResearchManager
+Icon=ResearchManager
+Terminal=false
+Categories=Office;ProjectManagement;Education;
+StartupNotify=true
+StartupWMClass=ResearchManager

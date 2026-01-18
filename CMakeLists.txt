@@ -127,6 +127,7 @@ qt_add_qml_module(appResearchManager
         ResearchManager/images/settings-svgrepo-com.svg
         ResearchManager/images/ResearchManager.ico
         ResearchManager/images/ResearchManager.png
+        ResearchManager/images/ResearchManager.icns
         ResearchManager/images/local-folder.svg
         ResearchManager/images/icons8-google-drive-240.svg
         ResearchManager/images/icons8-onedrive-240.svg
@@ -176,15 +177,23 @@ set_target_properties(appResearchManager PROPERTIES
     MACOSX_BUNDLE_INFO_STRING "Research Manager - Research and project management tool"
     MACOSX_BUNDLE_LONG_VERSION_STRING ${PROJECT_VERSION}
     MACOSX_BUNDLE_COPYRIGHT "Copyright © 2025 AiRLab-UNO"
+    MACOSX_BUNDLE_ICON_FILE ResearchManager.icns
     MACOSX_BUNDLE TRUE
     WIN32_EXECUTABLE TRUE
 )
 
-# Set application icon for Linux
-if(UNIX AND NOT APPLE)
+# Set application icon for different platforms
+if(APPLE)
+    # macOS bundle icon
+    set_source_files_properties(${CMAKE_SOURCE_DIR}/ResearchManager/images/ResearchManager.icns
+                               PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+elseif(UNIX AND NOT APPLE)
+    # Linux icon and desktop file
     install(FILES ${CMAKE_SOURCE_DIR}/ResearchManager/images/ResearchManager.png
             DESTINATION share/icons/hicolor/256x256/apps
             RENAME ResearchManager.png)
+    install(FILES ${CMAKE_SOURCE_DIR}/ResearchManager.desktop
+            DESTINATION share/applications)
 endif()
 
 # ==============================================================================

@@ -12,6 +12,7 @@
 #include <QStandardPaths>
 #include <QTimer>
 #include <QFileInfo>
+#include <QIcon>
 
 using namespace project;
 
@@ -141,15 +142,26 @@ int ApplicationManager::run()
 void ApplicationManager::setupEngine()
 {
     m_engine = new QQmlApplicationEngine(this);
-    
+
     // Register custom image provider for file icons
     m_engine->addImageProvider(QLatin1String("fileicon"), new project::FileIconProvider);
-    
+
     // Setup import paths
     m_engine->addImportPath(m_appDir);
     m_engine->addImportPath(m_appDir + "/qml");
     m_engine->addImportPath(m_appDir + "/ResearchManager");
-    
+
+    // Set application icon for Linux and macOS builds
+    #if !defined(Q_OS_WIN)
+    QIcon appIcon(":/ResearchManager/ResearchManager/images/ResearchManager.png");
+    if (!appIcon.isNull()) {
+        m_app->setWindowIcon(appIcon);
+        qInfo() << "[ApplicationManager] Set application icon from resources";
+    } else {
+        qWarning() << "[ApplicationManager] Failed to load application icon from resources";
+    }
+    #endif
+
     // Handle object creation failures
     QObject::connect(
         m_engine,
