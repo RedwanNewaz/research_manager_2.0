@@ -228,7 +228,10 @@ jobs:
           host: 'linux'
           target: 'android'
           arch: ${{ matrix.abi }}
-          modules: 'qt5compat qtpdf qtshadertools qtcharts qtimageformats qtmultimedia'
+          # NOTE: qtpdf is not published for Android, so it is omitted here.
+          # CMake finds Qt6::Pdf with QUIET and aiconfig.cpp guards its use with
+          # HAS_QT_PDF, so the Android build simply lacks PDF text extraction.
+          modules: 'qt5compat qtshadertools qtcharts qtimageformats qtmultimedia'
           dir: ${{ runner.temp }}/qt-android
 
       - name: Install Ninja
