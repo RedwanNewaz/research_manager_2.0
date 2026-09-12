@@ -30,7 +30,22 @@ public:
     Q_INVOKABLE bool createWorkspace(const QVariantMap &data);
     Q_INVOKABLE bool updateWorkspace(const QVariantMap &data);
     Q_INVOKABLE bool deleteWorkspace(int row);
+
+    /**
+     * @brief Move the workspace at @p from to position @p to and persist the order.
+     *
+     * Used by the drag-to-reorder interaction in WorkspaceManager.qml. The new
+     * order is stored in the hidden "sort_order" column, so it survives restarts.
+     */
+    Q_INVOKABLE bool moveWorkspace(int from, int to);
+
 private:
+    /** @brief Columns that back the ordering but are never shown in the table. */
+    static bool isHiddenColumn(const QString &column);
+
+    /** @brief Add the "sort_order" column on first use and seed it from the current order. */
+    bool ensureSortOrderColumn();
+
     DbmPtr db_;
     mutable QStringList headers_;
     mutable QList<QStringList> tableData_; // Cache for row/column data

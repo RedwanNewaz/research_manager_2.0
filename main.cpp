@@ -16,6 +16,12 @@ int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
 
+    // Identity used by QSettings and QStandardPaths. Keep in sync with
+    // Backend/apppaths.h, which defines where the databases live.
+    QCoreApplication::setOrganizationName("ResearchManager");
+    QCoreApplication::setOrganizationDomain("airlab.cs.uno.edu");
+    QCoreApplication::setApplicationName("ResearchManager");
+
     QSqlDatabase::removeDatabase("QSQLMIMER");
     
     ApplicationManager appManager(&app);

@@ -50,9 +50,11 @@ public:
     explicit SettingsManager(QObject *parent = nullptr);
     
     QString getConfigDatabasePath() const;
-    
+
 public slots:
     void setConfigDatabasePath(const QString &path);
+    void resetConfigDatabasePathToDefault();
+    QString defaultConfigDatabasePath() const;
     QString browseForDatabase(QObject *parentWindow = nullptr);
 
 signals:
@@ -103,7 +105,8 @@ private:
     bool createConfigDatabase(const QString &configPath, const QString &researchDbPath);
     bool ensureConfigDatabaseTables(const QString &configPath);
     QString getConfigDatabasePath();
-    void showStartupConfigDialog();
+    QString getResearchDatabasePath();
+    void ensureDefaultConfiguration();
     
     // Member variables
     QGuiApplication *m_app;

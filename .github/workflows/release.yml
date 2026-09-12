@@ -16,6 +16,10 @@ on:
 env:
   QT_VERSION: '6.10.1'
   BUILD_TYPE: Release
+  # Qt 6.10 requires this exact NDK; see doc.qt.io/qt-6.10/android-getting-started.html
+  ANDROID_NDK_VERSION: '27.2.12479018'
+  ANDROID_SDK_PLATFORM: '36'
+  ANDROID_BUILD_TOOLS: '36.0.0'
 
 jobs:
   build-windows:
@@ -164,8 +168,133 @@ jobs:
           name: ResearchManager-macOS-x64
           path: ResearchManager-macOS-x64.dmg
 
+  build-android:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    env:
+      # Optional repository secrets. When unset the workflow publishes an
+      # unsigned APK instead of failing.
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - abi: android_arm64_v8a
+            label: arm64-v8a
+          - abi: android_armv7
+            label: armeabi-v7a
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK and platform
+        run: |
+          sdkmanager --install \
+            "platform-tools" \
+            "platforms;android-${{ env.ANDROID_SDK_PLATFORM }}" \
+            "build-tools;${{ env.ANDROID_BUILD_TOOLS }}" \
+            "ndk;${{ env.ANDROID_NDK_VERSION }}"
+          echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/${{ env.ANDROID_NDK_VERSION }}" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/${{ env.ANDROID_NDK_VERSION }}" >> $GITHUB_ENV
+
+      - name: Install Qt (desktop host tools)
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: 'linux'
+          target: 'desktop'
+          arch: 'linux_gcc_64'
+          dir: ${{ runner.temp }}/qt-host
+
+      - name: Record host Qt path
+        run: echo "QT_HOST_PATH=$QT_ROOT_DIR" >> $GITHUB_ENV
+
+      - name: Install Qt for Android (${{ matrix.label }})
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: 'linux'
+          target: 'android'
+          arch: ${{ matrix.abi }}
+          modules: 'qt5compat qtpdf qtshadertools qtcharts qtimageformats qtmultimedia'
+          dir: ${{ runner.temp }}/qt-android
+
+      - name: Install Ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Configure CMake
+        run: |
+          cmake -B build-android -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$QT_ROOT_DIR/lib/cmake/Qt6/qt.toolchain.cmake" \
+            -DQT_HOST_PATH="$QT_HOST_PATH" \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DANDROID_SDK_ROOT="$ANDROID_SDK_ROOT" \
+            -DANDROID_NDK_ROOT="$ANDROID_NDK_ROOT" \
+            -DQT_ANDROID_BUILD_ALL_ABIS=OFF \
+            -DBUILD_TEST=OFF
+
+      - name: Build APK
+        run: cmake --build build-android --target apk --parallel
+
+      - name: Locate APK
+        id: apk
+        run: |
+          APK=$(find build-android -name "*.apk" | head -n 1)
+          if [ -z "$APK" ]; then
+            echo "ERROR: no APK produced"
+            find build-android -name "android-build*" -maxdepth 3 -type d
+            exit 1
+          fi
+          echo "Found APK: $APK"
+          echo "path=$APK" >> $GITHUB_OUTPUT
+
+      - name: Sign APK
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
+        env:
+          KEYSTORE_B64: ${{ env.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ env.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ env.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ env.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          APKSIGNER="$ANDROID_SDK_ROOT/build-tools/${{ env.ANDROID_BUILD_TOOLS }}/apksigner"
+          ZIPALIGN="$ANDROID_SDK_ROOT/build-tools/${{ env.ANDROID_BUILD_TOOLS }}/zipalign"
+          "$ZIPALIGN" -p -f 4 "${{ steps.apk.outputs.path }}" "$RUNNER_TEMP/aligned.apk"
+          "$APKSIGNER" sign \
+            --ks "$RUNNER_TEMP/release.keystore" \
+            --ks-pass "pass:$KEYSTORE_PASSWORD" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --key-pass "pass:$KEY_PASSWORD" \
+            --out "ResearchManager-Android-${{ matrix.label }}.apk" \
+            "$RUNNER_TEMP/aligned.apk"
+          rm -f "$RUNNER_TEMP/release.keystore"
+
+      - name: Stage unsigned APK
+        if: env.ANDROID_KEYSTORE_BASE64 == ''
+        run: |
+          echo "::warning::No signing keystore configured - publishing an UNSIGNED APK."
+          cp "${{ steps.apk.outputs.path }}" "ResearchManager-Android-${{ matrix.label }}-unsigned.apk"
+
+      - name: Upload Android Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ResearchManager-Android-${{ matrix.label }}
+          path: ResearchManager-Android-${{ matrix.label }}*.apk
+
   create-release:
-    needs: [build-windows, build-macos]
+    needs: [build-windows, build-macos, build-android]
     runs-on: ubuntu-latest
     if: always() && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
     permissions:
@@ -205,6 +334,7 @@ jobs:
           files: |
             artifacts/ResearchManager-Windows-x64/*.zip
             artifacts/ResearchManager-macOS-x64/*.dmg
+            artifacts/ResearchManager-Android-*/*.apk
           body: |
             ## Research Manager ${{ steps.version.outputs.VERSION }}
             
@@ -231,6 +361,8 @@ jobs:
             ### Downloads
             - **Windows**: `ResearchManager-Windows-x64.zip`
             - **macOS**: `ResearchManager-macOS-x64.dmg`
+            - **Android (64-bit, most devices)**: `ResearchManager-Android-arm64-v8a*.apk`
+            - **Android (older 32-bit devices)**: `ResearchManager-Android-armeabi-v7a*.apk`
             
             ### Installation
             
@@ -243,11 +375,18 @@ jobs:
             2. Drag the app to Applications folder
             3. Double-click to launch (now works properly!)
             
+            #### Android
+            1. Download the APK matching your device (`arm64-v8a` for virtually all
+               phones made since 2017)
+            2. Allow installation from unknown sources, then open the APK
+            3. The app runs in landscape orientation
+            
             ### Known Issues
             - None at this time
             
             ### System Requirements
             - **Windows**: Windows 10 or later
             - **macOS**: macOS 10.15 (Catalina) or later
+            - **Android**: Android 9 (API 28) or later
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

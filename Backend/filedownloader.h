@@ -48,19 +48,44 @@ private slots:
     void onDownloadFinished();
     void onDownloadProgress(qint64 bytesReceived, qint64 bytesTotal);
     void onDownloadError(QNetworkReply::NetworkError error);
+    void onMetadataFinished();
 
 private:
     QNetworkAccessManager* m_networkManager;
     QNetworkReply* m_currentReply;
+    QNetworkReply* m_metadataReply;
     QFile* m_downloadFile;
     bool m_isDownloading;
     QString m_downloadStatus;
     QString m_currentDownloadPath;
     QString m_downloadDirectory;
+    QString m_pendingLink;
+    QString m_pendingArxivId;
 
     void setIsDownloading(bool downloading);
     void setDownloadStatus(const QString& status);
     QString extractFileName(const QString& url);
+
+    /** @brief Resolve the directory downloads are written to, creating it if needed. */
+    QString resolveDownloadDirectory();
+
+    /** @brief Begin the actual transfer, saving as @p fileName inside the download directory. */
+    void startDownload(const QString& link, const QString& fileName);
+
+    /** @brief Ask the arXiv API for @p arxivId, then download using the paper title as filename. */
+    void fetchArxivMetadata(const QString& link, const QString& arxivId);
+
+    /** @brief Extract an arXiv identifier (e.g. "2309.10311", "math/0309136") from a URL, or "" if not arXiv. */
+    static QString arxivIdFromUrl(const QString& url);
+
+    /** @brief Rewrite an arXiv abstract/landing URL into its direct PDF URL. */
+    static QString arxivPdfUrl(const QString& url, const QString& arxivId);
+
+    /** @brief Pull the first entry's <title> out of an arXiv Atom API response. */
+    static QString parseArxivTitle(const QByteArray& atomXml);
+
+    /** @brief Turn an arbitrary title into a filesystem-safe file name. */
+    static QString sanitizeFileName(const QString& name);
 };
 
 } // namespace project

@@ -14,6 +14,10 @@ Rectangle {
 
     property int selectedRow: -1
 
+    // Drag-to-reorder state: the row currently being dragged, or -1
+    property int draggedRow: -1
+    readonly property int rowHeight: 60
+
     // Confirmation Dialog
     MessageDialog {
         id: deleteConfirmDialog
@@ -68,13 +72,23 @@ Rectangle {
                return tableView.width / wsModel.columnCount()
         }
 
+        rowHeightProvider: function(row) {
+               return mangeRect.rowHeight
+        }
+
         delegate: Rectangle {
             id: cellDelegate
             implicitWidth: 170
-            implicitHeight: 60
-            border.color: "#bbb"
+            implicitHeight: mangeRect.rowHeight
 
             property bool isEditing: false
+            readonly property bool beingDragged: mangeRect.draggedRow === row
+
+            // Lift the row being dragged so it reads as "picked up"
+            color: beingDragged ? "#cfe3ff" : "white"
+            z: beingDragged ? 2 : 0
+            border.width: beingDragged ? 2 : 1
+            border.color: beingDragged ? "#3b82f6" : "#bbb"
 
             Text {
                 id: cellText
@@ -120,6 +134,39 @@ Rectangle {
                 acceptedButtons: Qt.LeftButton
                 onDoubleTapped: {
                     cellDelegate.isEditing = true
+                }
+            }
+
+            // Drag a row up or down to change the workspace order.
+            // The rows swap live under the pointer and the new order is saved
+            // to the database immediately.
+            DragHandler {
+                id: rowDragHandler
+                target: null                    // reorder the model, don't move the cell
+                enabled: !cellDelegate.isEditing
+                acceptedButtons: Qt.LeftButton
+                xAxis.enabled: false
+                yAxis.enabled: true
+                cursorShape: active ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+
+                onActiveChanged: {
+                    mangeRect.draggedRow = active ? row : -1
+                }
+
+                onCentroidChanged: {
+                    if (!active || mangeRect.draggedRow < 0)
+                        return
+
+                    var scenePos = centroid.scenePosition
+                    var local = tableView.mapFromItem(null, scenePos.x, scenePos.y)
+                    var target = Math.floor((local.y + tableView.contentY) / mangeRect.rowHeight)
+
+                    target = Math.max(0, Math.min(tableView.rows - 1, target))
+
+                    if (target !== mangeRect.draggedRow) {
+                        if (wsModel.moveWorkspace(mangeRect.draggedRow, target))
+                            mangeRect.draggedRow = target
+                    }
                 }
             }
 

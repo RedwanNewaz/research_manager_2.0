@@ -1,6 +1,7 @@
 #include "applicationmanager.h"
 #include "backend.h"
 #include "templatemanager.h"
+#include "apppaths.h"
 #include <QFile>
 #include <QDir>
 #include <QSqlQuery>
@@ -13,6 +14,8 @@
 #include <QTimer>
 #include <QFileInfo>
 #include <QIcon>
+#include <QUrl>
+#include <QDate>
 
 using namespace project;
 
@@ -25,24 +28,37 @@ SettingsManager::SettingsManager(QObject *parent)
 
 QString SettingsManager::getConfigDatabasePath() const
 {
-    return m_settings.value("configDatabasePath", "").toString();
+    const QString stored = m_settings.value("configDatabasePath", "").toString();
+    return stored.isEmpty() ? apppaths::configDatabasePath() : stored;
+}
+
+QString SettingsManager::defaultConfigDatabasePath() const
+{
+    return apppaths::configDatabasePath();
 }
 
 void SettingsManager::setConfigDatabasePath(const QString &raw_path)
 {
-    QFileInfo info(raw_path);
-    QString path; 
-     if (info.exists()) {
-        path = raw_path;
-    } else {
-        path = "/" + raw_path;
-    }
-    
-    if (path != getConfigDatabasePath()) {
+    QString path = raw_path.trimmed();
+    if (path.isEmpty())
+        return;
+
+    // Accept values coming from QML FileDialog ("file:///C:/..." or "file:///home/...")
+    if (path.startsWith(QLatin1String("file:")))
+        path = QUrl(path).toLocalFile();
+
+    path = QDir::cleanPath(QFileInfo(path).absoluteFilePath());
+
+    if (path != m_settings.value("configDatabasePath", "").toString()) {
         m_settings.setValue("configDatabasePath", path);
         m_settings.sync();
         emit configDatabasePathChanged(path);
     }
+}
+
+void SettingsManager::resetConfigDatabasePathToDefault()
+{
+    setConfigDatabasePath(apppaths::configDatabasePath());
 }
 
 QString SettingsManager::browseForDatabase(QObject *parentWindow)
@@ -53,7 +69,7 @@ QString SettingsManager::browseForDatabase(QObject *parentWindow)
     QString selectedPath = QFileDialog::getOpenFileName(
         parent,
         "Select Config Database",
-        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation),
+        apppaths::configDir(),
         "Database Files (*.db);;All Files (*)"
     );
     
@@ -117,8 +133,9 @@ ApplicationManager::~ApplicationManager()
 
 bool ApplicationManager::initialize()
 {
-    // Show startup dialog to configure config database path if needed
-    showStartupConfigDialog();
+    // Resolve default (writable, per-user) database locations before anything
+    // touches the databases. No manual configuration required.
+    ensureDefaultConfiguration();
     
     setupEngine();
     setupDatabases();
@@ -174,33 +191,55 @@ void ApplicationManager::setupEngine()
 
 void ApplicationManager::setupDatabases()
 {
-    // Setup research database
-    QString dbPath = m_appDir + "/research.db";
+    // --- Research database -------------------------------------------------
+    // Lives in the per-user configuration directory so it is always writable,
+    // even when the application itself is installed read-only.
+    const QString dbPath = getResearchDatabasePath();
+
     if (!QFile::exists(dbPath)) {
         createResearchDatabase(dbPath);
     }
-    
+
     m_researchDb = std::make_shared<DatabaseManager>("research");
     m_researchDb->connect(dbPath);
-    
-    // Setup config database - get path from settings
-    QString configPath = getConfigDatabasePath();
-    
-    // Ensure directory exists
-    QFileInfo fileInfo(configPath);
-    QDir dir = fileInfo.dir();
-    if (!dir.exists()) {
-        dir.mkpath(".");
+
+    // --- Config database ---------------------------------------------------
+    const QString configPath = getConfigDatabasePath();
+
+    // Ensure the containing directory exists
+    QDir dir = QFileInfo(configPath).dir();
+    if (!dir.exists() && !dir.mkpath(".")) {
+        qWarning() << "[ApplicationManager] Could not create directory for config database:" << dir.path();
     }
-    
+
     if (!QFile::exists(configPath)) {
         createConfigDatabase(configPath, dbPath);
     } else {
         // Ensure existing database has all required tables
         ensureConfigDatabaseTables(configPath);
     }
-    
+
     m_configDb = std::make_shared<DatabaseManager>("config", configPath);
+}
+
+QString ApplicationManager::getResearchDatabasePath()
+{
+    QSettings settings("ResearchManager", "ResearchManager");
+    const QString stored = settings.value("researchDatabasePath", "").toString();
+
+    if (!stored.isEmpty() && QFileInfo(stored).isAbsolute() && QFile::exists(stored)) {
+        return stored;
+    }
+
+    apppaths::ensureConfigDir();
+    const QString defaultPath = apppaths::researchDatabasePath();
+
+    // First run after an upgrade: bring along a database created by an older build.
+    apppaths::migrateLegacyDatabase(defaultPath, apppaths::legacyResearchDatabasePaths());
+
+    settings.setValue("researchDatabasePath", defaultPath);
+    settings.sync();
+    return defaultPath;
 }
 
 bool ApplicationManager::createResearchDatabase(const QString &dbPath)
@@ -218,15 +257,31 @@ bool ApplicationManager::createConfigDatabase(const QString &configPath, const Q
     configDb.setDatabaseName(configPath);
     
     if (!configDb.open()) {
-        qWarning() << "Failed to create config database";
+        qWarning() << "Failed to create config database:" << configDb.lastError().text();
+        configDb = QSqlDatabase();
+        QSqlDatabase::removeDatabase("tempConfig");
         return false;
     }
-    
+
+    // Scope all queries so they are destroyed before the connection is removed.
+    {
     QSqlQuery query(configDb);
     query.exec("CREATE TABLE IF NOT EXISTS Workspace (name TEXT, database TEXT, year INTEGER, workspace TEXT, icon TEXT)");
-    query.exec("INSERT INTO Workspace VALUES ('Default', '" 
-               + researchDbPath + "', 2026, '" 
-               + QDir::homePath() + "/ResearchWorkspace', 'local-folder.svg')");
+
+    // Seed the Default workspace, and make sure its folder actually exists.
+    const QString defaultWorkspaceDir = apppaths::defaultWorkspaceDir();
+    QDir().mkpath(defaultWorkspaceDir);
+
+    query.prepare("INSERT INTO Workspace (name, database, year, workspace, icon) "
+                  "VALUES (:name, :database, :year, :workspace, :icon)");
+    query.bindValue(":name", "Default");
+    query.bindValue(":database", researchDbPath);
+    query.bindValue(":year", QDate::currentDate().year());
+    query.bindValue(":workspace", defaultWorkspaceDir);
+    query.bindValue(":icon", "local-folder.svg");
+    if (!query.exec()) {
+        qWarning() << "[ApplicationManager] Failed to seed Default workspace:" << query.lastError().text();
+    }
     
     // Create Contacts table
     query.exec("CREATE TABLE IF NOT EXISTS Contacts ("
@@ -247,8 +302,10 @@ bool ApplicationManager::createConfigDatabase(const QString &configPath, const Q
                "items TEXT NOT NULL,"
                "category_id INTEGER"
                ")");
-    
+    } // end query scope
+
     configDb.close();
+    configDb = QSqlDatabase();
     QSqlDatabase::removeDatabase("tempConfig");
     
     return true;
@@ -260,10 +317,14 @@ bool ApplicationManager::ensureConfigDatabaseTables(const QString &configPath)
     configDb.setDatabaseName(configPath);
     
     if (!configDb.open()) {
-        qWarning() << "Failed to open config database for migration";
+        qWarning() << "Failed to open config database for migration:" << configDb.lastError().text();
+        configDb = QSqlDatabase();
+        QSqlDatabase::removeDatabase("tempMigration");
         return false;
     }
-    
+
+    // Scope all queries so they are destroyed before the connection is removed.
+    {
     QSqlQuery query(configDb);
     
     // Create Template table if it doesn't exist
@@ -274,22 +335,68 @@ bool ApplicationManager::ensureConfigDatabaseTables(const QString &configPath)
                    ")")) {
         qWarning() << "Failed to ensure Template table exists:" << query.lastError().text();
     }
-    
-    // Ensure other tables exist
-    query.exec("CREATE TABLE IF NOT EXISTS Workspace (name TEXT, database TEXT, workspace TEXT, icon TEXT)");
-    query.exec("CREATE TABLE IF NOT EXISTS Contacts ("
-               "id INTEGER PRIMARY KEY AUTOINCREMENT,"
-               "name TEXT NOT NULL,"
-               "affiliation TEXT,"
-               "website TEXT,"
-               "phone TEXT,"
-               "email TEXT NOT NULL,"
-               "zoom TEXT,"
-               "photo TEXT,"
-               "UNIQUE(name),"
-               ")");
-    
+
+    // Ensure other tables exist. Note the Workspace schema must match the one
+    // used by createConfigDatabase(), including the "year" column.
+    if (!query.exec("CREATE TABLE IF NOT EXISTS Workspace ("
+                    "name TEXT, database TEXT, year INTEGER, workspace TEXT, icon TEXT)")) {
+        qWarning() << "Failed to ensure Workspace table exists:" << query.lastError().text();
+    }
+
+    // Older builds created Workspace without the "year" column - add it in place.
+    {
+        QStringList workspaceColumns;
+        QSqlQuery pragma(configDb);
+        if (pragma.exec("PRAGMA table_info(Workspace)")) {
+            while (pragma.next())
+                workspaceColumns << pragma.value(1).toString();
+        }
+        if (!workspaceColumns.isEmpty() && !workspaceColumns.contains("year", Qt::CaseInsensitive)) {
+            if (!query.exec("ALTER TABLE Workspace ADD COLUMN year INTEGER")) {
+                qWarning() << "Failed to add 'year' column to Workspace:" << query.lastError().text();
+            } else {
+                qInfo() << "[ApplicationManager] Added missing 'year' column to Workspace table";
+            }
+        }
+    }
+
+    if (!query.exec("CREATE TABLE IF NOT EXISTS Contacts ("
+                    "name TEXT NOT NULL,"
+                    "affiliation TEXT,"
+                    "website TEXT,"
+                    "phone TEXT,"
+                    "email TEXT NOT NULL,"
+                    "zoom TEXT,"
+                    "photo TEXT,"
+                    "PRIMARY KEY(name)"
+                    ")")) {
+        qWarning() << "Failed to ensure Contacts table exists:" << query.lastError().text();
+    }
+
+    // A config database with no workspace at all leaves the UI empty; seed one.
+    QSqlQuery countQuery(configDb);
+    if (countQuery.exec("SELECT COUNT(*) FROM Workspace") && countQuery.next()
+        && countQuery.value(0).toInt() == 0) {
+        const QString defaultWorkspaceDir = apppaths::defaultWorkspaceDir();
+        QDir().mkpath(defaultWorkspaceDir);
+
+        QSqlQuery seed(configDb);
+        seed.prepare("INSERT INTO Workspace (name, database, year, workspace, icon) "
+                     "VALUES (:name, :database, :year, :workspace, :icon)");
+        seed.bindValue(":name", "Default");
+        seed.bindValue(":database", apppaths::researchDatabasePath());
+        seed.bindValue(":year", QDate::currentDate().year());
+        seed.bindValue(":workspace", defaultWorkspaceDir);
+        seed.bindValue(":icon", "local-folder.svg");
+        if (!seed.exec())
+            qWarning() << "Failed to seed Default workspace:" << seed.lastError().text();
+        else
+            qInfo() << "[ApplicationManager] Seeded Default workspace in existing config database";
+    }
+    } // end query scope
+
     configDb.close();
+    configDb = QSqlDatabase();
     QSqlDatabase::removeDatabase("tempMigration");
     
     qDebug() << "Config database migration completed";
@@ -488,55 +595,46 @@ QString ApplicationManager::getConfigDatabasePath()
 {
     // Load settings from QSettings
     QSettings settings("ResearchManager", "ResearchManager");
-    QString configPath = settings.value("configDatabasePath", "").toString();
-    
-    // If path exists in settings and file exists, return it
-    if (!configPath.isEmpty() && QFile::exists(configPath)) {
-        qDebug() << "Using existing config database from settings:" << configPath;
-        return configPath;
+    const QString stored = settings.value("configDatabasePath", "").toString();
+
+    // Honour an explicit, absolute choice made by the user, if it still exists.
+    // Relative values come from older builds (e.g. "../../Test/common_config.db")
+    // and are deliberately discarded: they depend on the working directory.
+    if (!stored.isEmpty() && QFileInfo(stored).isAbsolute() && QFile::exists(stored)) {
+        qDebug() << "[ApplicationManager] Using config database from settings:" << stored;
+        return stored;
     }
-    
-    // Check if we already have a default path that exists
-    QString defaultPath = "../../Test/common_config.db";
-    if (QFile::exists(defaultPath)) {
-        qDebug() << "Using default config database path:" << defaultPath;
-        settings.setValue("configDatabasePath", defaultPath);
-        return defaultPath;
+
+    if (!stored.isEmpty() && !QFileInfo(stored).isAbsolute()) {
+        qInfo() << "[ApplicationManager] Discarding relative config database path from settings:" << stored;
     }
-    
-    // Path not found - use default
-    configPath = defaultPath;
-    qDebug() << "Config database not found. Using default path:" << defaultPath;
+
+    // Fall back to the per-user default location, creating it on demand.
+    apppaths::ensureConfigDir();
+    const QString defaultPath = apppaths::configDatabasePath();
+
+    // First run after an upgrade: bring along a database created by an older build.
+    apppaths::migrateLegacyDatabase(defaultPath, apppaths::legacyConfigDatabasePaths());
+
     settings.setValue("configDatabasePath", defaultPath);
-    
-    return configPath;
+    settings.sync();
+
+    qInfo() << "[ApplicationManager] Using default config database:" << defaultPath;
+    return defaultPath;
 }
 
-void ApplicationManager::showStartupConfigDialog()
+void ApplicationManager::ensureDefaultConfiguration()
 {
-    QSettings settings("ResearchManager", "ResearchManager");
-    QString configPath = settings.value("configDatabasePath", "").toString();
-    
-    // If path is already set and file exists, use it
-    if (!configPath.isEmpty()) {
-        // Try to resolve the path if it's relative
-        QFileInfo info(configPath);
-        if (!info.isAbsolute()) {
-            QString resolvedPath = QCoreApplication::applicationDirPath() + "/" + configPath;
-            configPath = QDir::cleanPath(resolvedPath);
-        }
-        
-        if (QFile::exists(configPath)) {
-            qDebug() << "Config path already configured:" << configPath;
-            settings.setValue("configDatabasePath", configPath);  // Store absolute path
-            return;
-        }
-    }
-    
-    // Create config database in the application directory
-    QString appDirPath = QCoreApplication::applicationDirPath() + "/common_config.db";
-    settings.setValue("configDatabasePath", appDirPath);
-    qDebug() << "Config database path set to:" << appDirPath;
+    // Resolves (and, on first run, creates/migrates) the default database
+    // locations so the application is usable without any manual setup.
+    // The user can still override the config database from Settings.
+    apppaths::ensureConfigDir();
+
+    const QString configPath = getConfigDatabasePath();
+    const QString researchPath = getResearchDatabasePath();
+
+    qInfo() << "[ApplicationManager] Config database :" << configPath;
+    qInfo() << "[ApplicationManager] Research database:" << researchPath;
 }
 
 QString ApplicationManager::browseForConfigDatabase()

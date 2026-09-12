@@ -55,6 +55,7 @@ endif()
 
 qt_add_executable(appResearchManager
     main.cpp
+    Backend/apppaths.h
     Backend/applicationmanager.h
     Backend/applicationmanager.cpp
     Backend/homepage.h
@@ -181,6 +182,23 @@ set_target_properties(appResearchManager PROPERTIES
     MACOSX_BUNDLE TRUE
     WIN32_EXECUTABLE TRUE
 )
+
+# ==============================================================================
+# Android Packaging
+# ==============================================================================
+if(ANDROID)
+    set_target_properties(appResearchManager PROPERTIES
+        # android/AndroidManifest.xml pins the app to landscape orientation
+        QT_ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android"
+        QT_ANDROID_PACKAGE_NAME "com.airlabuno.researchmanager"
+        QT_ANDROID_APP_NAME "Research Manager"
+        QT_ANDROID_MIN_SDK_VERSION 28
+        QT_ANDROID_TARGET_SDK_VERSION 36
+        QT_ANDROID_VERSION_NAME "${PROJECT_VERSION}"
+        QT_ANDROID_VERSION_CODE 1
+    )
+    message(STATUS "Android packaging configured (landscape, package com.airlabuno.researchmanager)")
+endif()
 
 # Set application icon for different platforms
 if(APPLE)

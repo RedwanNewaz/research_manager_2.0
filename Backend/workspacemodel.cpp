@@ -1,4 +1,5 @@
 #include "workspacemodel.h"
+#include <utility>
 
 WorkspaceModel::WorkspaceModel(DbmPtr db, QObject *parent)
     : QAbstractTableModel{parent}, db_(db)
@@ -6,32 +7,51 @@ WorkspaceModel::WorkspaceModel(DbmPtr db, QObject *parent)
 
 }
 
+bool WorkspaceModel::isHiddenColumn(const QString &column)
+{
+    // "sort_order" only exists to remember the user's drag-and-drop ordering.
+    return column.compare(QStringLiteral("sort_order"), Qt::CaseInsensitive) == 0;
+}
+
 int WorkspaceModel::rowCount(const QModelIndex &parent) const
 {
     if (parent.isValid()) return 0;
-    // Initialize headers and data
 
     // Assuming a specific table name for this model, e.g., "Workspace"
-    headers_ = db_->getHeaderList("Workspace");
+    const QStringList allColumns = db_->getHeaderList("Workspace");
 
-    // qInfo() << "[WorkspaceModel]: " << headers_;
+    headers_.clear();
+    for (const QString &column : allColumns) {
+        if (!isHiddenColumn(column))
+            headers_ << column;
+    }
 
     tableData_.clear();
+    if (headers_.isEmpty())
+        return 0;
 
+    QStringList quoted;
+    for (const QString &column : std::as_const(headers_))
+        quoted << QStringLiteral("\"%1\"").arg(column);
 
-    int cols = headers_.count();
-    QString sqlCmd = "SELECT * FROM Workspace";
-    auto response = db_->queryRow(sqlCmd);
+    // Respect the user's manual ordering when the column is present; fall back
+    // to insertion order otherwise.
+    const bool hasSortOrder = allColumns.contains(QStringLiteral("sort_order"), Qt::CaseInsensitive);
+    const QString orderBy = hasSortOrder
+        ? QStringLiteral(" ORDER BY COALESCE(sort_order, rowid), rowid")
+        : QStringLiteral(" ORDER BY rowid");
 
-    for(int i =0; i < response.size(); i+=cols)
+    const QString sqlCmd = "SELECT " + quoted.join(", ") + " FROM Workspace" + orderBy;
+    const auto response = db_->queryRow(sqlCmd);
+
+    const int cols = headers_.count();
+    for (int i = 0; i + cols <= response.size(); i += cols)
     {
         QStringList temp;
         for(int j = i; j < i+cols; ++j)
             temp << response[j];
         tableData_.append(temp);
     }
-
-
 
     return tableData_.count();
 }
@@ -307,7 +327,7 @@ bool WorkspaceModel::deleteWorkspace(int row)
     // Get the ID of the workspace to delete (assuming first column is ID)
     QString idColumn = headers_.at(0);
     QString idValue = tableData_.at(row).at(0);
-    QString workspacePath = tableData_.at(row).at(4); // workspace column
+    Q_UNUSED(tableData_.at(row).value(headers_.indexOf("workspace"))); // workspace column
 
     QString sqlCmd = QString("DELETE FROM Workspace WHERE %1 = '%2'")
                          .arg(idColumn)
@@ -329,3 +349,80 @@ bool WorkspaceModel::deleteWorkspace(int row)
     return success;
 }
 
+
+bool WorkspaceModel::ensureSortOrderColumn()
+{
+    const QStringList columns = db_->getHeaderList("Workspace");
+    if (columns.isEmpty()) {
+        qWarning() << "[WorkspaceModel] Workspace table is unavailable";
+        return false;
+    }
+
+    if (!columns.contains(QStringLiteral("sort_order"), Qt::CaseInsensitive)) {
+        if (!db_->createTable("ALTER TABLE Workspace ADD COLUMN sort_order INTEGER")) {
+            qWarning() << "[WorkspaceModel] Could not add sort_order column";
+            return false;
+        }
+        qInfo() << "[WorkspaceModel] Added sort_order column to Workspace table";
+    }
+
+    // Rows added before this feature (or by createWorkspace) have no order yet;
+    // seed them from their insertion order so nothing jumps around.
+    auto seed = db_->getBinder("UPDATE Workspace SET sort_order = rowid WHERE sort_order IS NULL");
+    if (!seed.exec())
+        qWarning() << "[WorkspaceModel] Could not seed sort_order:" << seed.lastError().text();
+
+    return true;
+}
+
+bool WorkspaceModel::moveWorkspace(int from, int to)
+{
+    const int count = tableData_.count();
+
+    if (from == to)
+        return false;
+    if (from < 0 || from >= count || to < 0 || to >= count) {
+        qWarning() << "[WorkspaceModel] moveWorkspace out of range:" << from << "->" << to
+                   << "(rows:" << count << ")";
+        return false;
+    }
+
+    if (!ensureSortOrderColumn())
+        return false;
+
+    // Column 0 is the workspace name, which identifies the row in the database.
+    QStringList names;
+    names.reserve(count);
+    for (const QStringList &row : std::as_const(tableData_))
+        names << row.value(0);
+
+    names.move(from, to);
+
+    // beginMoveRows wants the destination *before* the row is removed
+    const int destination = (to > from) ? to + 1 : to;
+    if (!beginMoveRows(QModelIndex(), from, from, QModelIndex(), destination)) {
+        qWarning() << "[WorkspaceModel] beginMoveRows rejected" << from << "->" << to;
+        return false;
+    }
+
+    tableData_.move(from, to);
+
+    bool success = true;
+    for (int i = 0; i < names.size(); ++i) {
+        auto query = db_->getBinder("UPDATE Workspace SET sort_order = :order WHERE name = :name");
+        query.bindValue(":order", i);
+        query.bindValue(":name", names.at(i));
+        if (!query.exec()) {
+            success = false;
+            qWarning() << "[WorkspaceModel] Failed to persist order for" << names.at(i)
+                       << query.lastError().text();
+        }
+    }
+
+    endMoveRows();
+
+    if (success)
+        qInfo() << "[WorkspaceModel] Moved workspace" << from << "->" << to;
+
+    return success;
+}
