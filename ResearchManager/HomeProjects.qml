@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
-import Qt5Compat.GraphicalEffects
+import QtQuick.Effects
 
 ScrollView {
         id: mainScrollView
@@ -103,11 +103,15 @@ ScrollView {
                                         height: 56
                                         anchors.horizontalCenter: parent.horizontalCenter
 
-                                        ColorOverlay {
+                                        MultiEffect {
                                             anchors.fill: parent
                                             source: parent
-                                            color: groupDelegate.randomColor
-                                            Behavior on color { ColorAnimation { duration: 200 } }
+                                            // Lift to white first: colorization
+                                            // works on luminance.
+                                            brightness: 1.0
+                                            colorization: 1.0
+                                            colorizationColor: groupDelegate.randomColor
+                                            Behavior on colorizationColor { ColorAnimation { duration: 200 } }
                                         }
                                     }
 
@@ -161,6 +165,38 @@ ScrollView {
         /* ---------------- Context Menu ---------------- */
         Menu {
             id: delMenu
+
+            // Filled in when the menu opens, so a workspace switch is picked up.
+            property var categoryList: []
+            property string currentCategory: ""
+
+            onAboutToShow: {
+                categoryList = homepageModel.availableCategories()
+                currentCategory = homepageModel.categoryOfProject(mainScreen.projectName)
+            }
+
+            // Fixes a project that ended up under the wrong heading.
+            Menu {
+                id: moveMenu
+                title: "Move to category"
+
+                Instantiator {
+                    model: delMenu.categoryList
+                    delegate: MenuItem {
+                        // "&" starts a keyboard mnemonic in a menu, so
+                        // "Grants & Funding" would show as "Grants Funding".
+                        text: String(modelData).replace(/&/g, "&&")
+                        checkable: true
+                        checked: modelData === delMenu.currentCategory
+                        onTriggered: homepageModel.setProjectCategory(
+                                         mainScreen.projectName, modelData)
+                    }
+                    onObjectAdded: (index, object) => moveMenu.insertItem(index, object)
+                    onObjectRemoved: (index, object) => moveMenu.removeItem(object)
+                }
+            }
+
+            MenuSeparator {}
 
             MenuItem {
                 text: "Delete"

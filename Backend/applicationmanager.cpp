@@ -2,6 +2,9 @@
 #include "backend.h"
 #include "templatemanager.h"
 #include "apppaths.h"
+#include "categoryrepair.h"
+#include "homepage.h"
+#include "createproject.h"
 #include <QFile>
 #include <QDir>
 #include <QSqlQuery>
@@ -220,6 +223,39 @@ void ApplicationManager::setupDatabases()
     }
 
     m_configDb = std::make_shared<DatabaseManager>("config", configPath);
+
+    // Give every template category id a name, so projects can be filed by name
+    // in workspaces that number their categories differently.
+    categoryrepair::ensureConfigCategories(*m_configDb);
+}
+
+void ApplicationManager::rememberWorkspaceDir(const QString &workspaceDir)
+{
+    m_workspaceDir = workspaceDir;
+}
+
+void ApplicationManager::prepareResearchDatabase(const QString &dbPath)
+{
+    Q_UNUSED(dbPath);
+
+    if (!m_researchDb || !m_configDb)
+        return;
+
+    // Make sure the categories a template can ask for exist in this workspace.
+    for (const QString &name : { categoryrepair::canonical::researchProjects(),
+                                 categoryrepair::canonical::publications(),
+                                 categoryrepair::canonical::presentations(),
+                                 categoryrepair::canonical::grants(),
+                                 categoryrepair::canonical::teaching(),
+                                 categoryrepair::canonical::service() }) {
+        categoryrepair::resolveCategoryId(*m_researchDb, name);
+    }
+
+    const int repaired = categoryrepair::repairProjectCategories(
+        *m_researchDb, *m_configDb, m_workspaceDir);
+
+    if (repaired > 0 && m_homepage)
+        m_homepage->reload();
 }
 
 QString ApplicationManager::getResearchDatabasePath()
@@ -360,6 +396,27 @@ bool ApplicationManager::ensureConfigDatabaseTables(const QString &configPath)
         }
     }
 
+    // The workspace order the user sets by dragging rows in Settings lives in
+    // "sort_order". Add it here so the home page can order by it from the very
+    // first run, before anything has been dragged.
+    {
+        QStringList workspaceColumns;
+        QSqlQuery pragma(configDb);
+        if (pragma.exec("PRAGMA table_info(Workspace)")) {
+            while (pragma.next())
+                workspaceColumns << pragma.value(1).toString();
+        }
+        if (!workspaceColumns.isEmpty()
+            && !workspaceColumns.contains("sort_order", Qt::CaseInsensitive)) {
+            if (!query.exec("ALTER TABLE Workspace ADD COLUMN sort_order INTEGER"))
+                qWarning() << "Failed to add 'sort_order' column to Workspace:" << query.lastError().text();
+            else
+                qInfo() << "[ApplicationManager] Added 'sort_order' column to Workspace table";
+        }
+        if (!query.exec("UPDATE Workspace SET sort_order = rowid WHERE sort_order IS NULL"))
+            qWarning() << "Failed to seed 'sort_order':" << query.lastError().text();
+    }
+
     if (!query.exec("CREATE TABLE IF NOT EXISTS Contacts ("
                     "name TEXT NOT NULL,"
                     "affiliation TEXT,"
@@ -451,8 +508,16 @@ void ApplicationManager::setupSignalConnections()
                      m_project, SLOT(setProjectInfo(QStringList)));
     QObject::connect(m_templateProject, SIGNAL(setRootDir(QString)),
                      m_project, SLOT(setRootDir(QString)));
+    QObject::connect(m_templateProject, SIGNAL(setWsPathRoot(QString)),
+                     this, SLOT(rememberWorkspaceDir(QString)));
     QObject::connect(m_templateProject, SIGNAL(setReserachDB(QString)),
                      m_homepage, SLOT(setReserachDB(QString)));
+    // Runs after the home page has re-pointed the shared research connection.
+    QObject::connect(m_templateProject, SIGNAL(setReserachDB(QString)),
+                     this, SLOT(prepareResearchDatabase(QString)));
+    // A new project has to show up on the home page without a restart.
+    QObject::connect(m_templateProject, &homepage::CreateProject::projectCreated,
+                     m_homepage, [this](const QString &) { m_homepage->reload(); });
     QObject::connect(m_templateProject, SIGNAL(setReserachDB(QString)),
                      m_calModel, SLOT(updateCalendarDB(QString)));
     

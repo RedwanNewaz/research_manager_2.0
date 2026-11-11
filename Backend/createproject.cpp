@@ -1,4 +1,6 @@
 #include "createproject.h"
+#include <QRegularExpression>
+#include <utility>
 using namespace homepage;
 
 CreateProject::CreateProject(DbmPtr db, QObject *parent)
@@ -12,44 +14,87 @@ CreateProject::CreateProject(DbmPtr db, QObject *parent)
     m_timer->start();
 }
 
-int CreateProject::selectTemplate(const QString &name)
+QString CreateProject::selectTemplate(const QString &name)
 {
+    template_.clear();
+
     if(name.isEmpty()){
         emit setRootDir(m_root_dir);
-        return -1;
+        return categoryrepair::canonical::researchProjects();
     }
-    QString sqlCmd= QString("SELECT items FROM %1").arg(name);
-    template_ =  db_->queryRow(sqlCmd);
-    qInfo() << "[CreateProject] template := " << template_;
+
+    // Template names may contain spaces ("Invited Talk"), and each template has
+    // a table of its own - the name has to be quoted or the query is a syntax
+    // error and the project ends up with no folders and no category.
+    const QString sqlCmd = QString("SELECT items FROM \"%1\"").arg(name);
+    template_ = db_->queryRow(sqlCmd);
+    qInfo() << "[CreateProject] template" << name << ":=" << template_;
     emit layoutChanged();
 
-    sqlCmd= QString("SELECT category_id FROM %1").arg(name);
-    for(const auto& cat: db_->queryRow(sqlCmd))
-        return cat.toInt();
-    return -1;
+    // The category comes from the Template registry, not from the first folder
+    // of the template: the folders carry their own ids and they disagree.
+    return categoryrepair::categoryForTemplate(*db_, name);
 }
 
-void CreateProject::createProject(const QString &project_name, const QString &template_name)
+bool CreateProject::createProject(const QString &project_name, const QString &template_name)
 {
-    auto cat = selectTemplate(template_name);
-    // populate database
-    QStringList info;
-    info << project_name << QString::number(cat);
-    emit setProjectInfo(info);
+    const QString name = project_name.trimmed();
 
-        // populate workspace
-    QDir baseDir(m_root_dir + "/" + project_name);
-
-    for (const QString &relativePath : template_) {
-        const QString fullPath = baseDir.filePath(relativePath);
-
-        if (!baseDir.mkpath(fullPath)) {
-            qWarning() << "Failed to create:" << fullPath;
-
-        }
+    if (name.isEmpty()) {
+        emit projectCreationFailed(tr("Please enter a project name."));
+        return false;
     }
 
+    // The name becomes a folder name, so reject what the filesystem will not take.
+    static const QRegularExpression illegal(R"([\\/:*?"<>|])");
+    if (name.contains(illegal)) {
+        emit projectCreationFailed(tr(R"(A project name cannot contain \ / : * ? " < > |)"));
+        return false;
+    }
+
+    if (m_root_dir.isEmpty()) {
+        emit projectCreationFailed(tr("No workspace is selected."));
+        return false;
+    }
+
+    QDir workspaceDir(m_root_dir);
+    if (!workspaceDir.exists() && !workspaceDir.mkpath(QStringLiteral("."))) {
+        emit projectCreationFailed(tr("The workspace folder %1 does not exist and could not be created.")
+                                       .arg(m_root_dir));
+        return false;
+    }
+
+    const QString category = selectTemplate(template_name);
+
+    if (template_.isEmpty()) {
+        qWarning() << "[CreateProject] Template" << template_name << "has no folders";
+    }
+
+    // Add the project to the research database. ProjectPage owns that
+    // connection, so the insert happens in its slot.
+    QStringList info;
+    info << name << category;
+    emit setProjectInfo(info);
+
+    // Create the template's folders inside the project directory.
+    QDir baseDir(workspaceDir.filePath(name));
+    if (!baseDir.exists() && !baseDir.mkpath(QStringLiteral("."))) {
+        emit projectCreationFailed(tr("Could not create the folder %1.").arg(baseDir.path()));
+        return false;
+    }
+
+    for (const QString &relativePath : std::as_const(template_)) {
+        const QString fullPath = baseDir.filePath(relativePath);
+        if (!baseDir.mkpath(fullPath))
+            qWarning() << "[CreateProject] Failed to create:" << fullPath;
+    }
+
+    qInfo() << "[CreateProject] Created" << name << "from" << template_name
+            << "under" << category;
+
     emit layoutChanged();
+    emit projectCreated(name);
+    return true;
 }
 
 bool CreateProject::deleteProject(const QString &project_name)
@@ -72,7 +117,13 @@ bool CreateProject::deleteProject(const QString &project_name)
 
 void CreateProject::setRoot()
 {
-    QString sqlCmd= "SELECT name, database, workspace, icon FROM Workspace";
+    // Honour the order the user set by dragging rows in Settings > Manage
+    // Workspace, so the first workspace shown here is their highest priority.
+    const bool hasSortOrder = db_->getHeaderList("Workspace")
+                                  .contains(QStringLiteral("sort_order"), Qt::CaseInsensitive);
+    QString sqlCmd = QStringLiteral("SELECT name, database, workspace, icon FROM Workspace ")
+                     + (hasSortOrder ? QStringLiteral("ORDER BY COALESCE(sort_order, rowid), rowid")
+                                     : QStringLiteral("ORDER BY rowid"));
     auto response = db_->queryRow(sqlCmd);
     int k = 0;
     for(int i = 0; i < response.size(); i+=4)

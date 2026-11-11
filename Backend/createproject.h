@@ -7,6 +7,7 @@
 #include <QTimer>
 #include <QMap>
 #include "database.h"
+#include "categoryrepair.h"
 
 namespace homepage{
 
@@ -20,12 +21,36 @@ class CreateProject : public QAbstractListModel
     Q_PROPERTY(QString WsPath READ WsPath WRITE setWsPath NOTIFY WsPathChanged FINAL)
 public:
     explicit CreateProject(DbmPtr db, QObject *parent = nullptr);
-    Q_INVOKABLE int selectTemplate(const QString& name);
-    Q_INVOKABLE void createProject(const QString& project_name, const QString& template_name);
+
+    /**
+     * @brief Load @p name's folder list and report the category it files under.
+     * @param name a template name, e.g. "NSF" or "Invited Talk".
+     * @return the canonical category name for @p name.
+     */
+    Q_INVOKABLE QString selectTemplate(const QString& name);
+
+    /**
+     * @brief Create @p project_name from @p template_name.
+     *
+     * Adds the project to the workspace's research database and creates the
+     * template's folders on disk. Reports the outcome through
+     * projectCreated() or projectCreationFailed() so the page can react
+     * instead of silently doing nothing.
+     *
+     * @return true when the project was created.
+     */
+    Q_INVOKABLE bool createProject(const QString& project_name, const QString& template_name);
     Q_INVOKABLE bool deleteProject(const QString& project_name);
 
 signals:
+    /** @brief (project name, category name) for the project being created. */
     void setProjectInfo(QStringList);
+
+    /** @brief A project was created; the home page should reload. */
+    void projectCreated(QString name);
+
+    /** @brief The project could not be created, with a message for the user. */
+    void projectCreationFailed(QString reason);
     void setRootDir(QString);
     void setReserachDB(QString);
     void WsIndexChanged();

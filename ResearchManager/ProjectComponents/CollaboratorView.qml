@@ -2,7 +2,7 @@ import QtQuick 2.15
 import QtQuick.Window 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
-import Qt5Compat.GraphicalEffects
+import QtQuick.Effects
 
 
 Item{
@@ -200,11 +200,15 @@ Item{
                         anchors.fill: parent
                         radius: width / 2
                         visible: false
+                        // MultiEffect needs a texture provider for the mask,
+                        // which a plain Rectangle only becomes once layered.
+                        layer.enabled: true
                     }
 
-                    OpacityMask {
+                    MultiEffect {
                         anchors.fill: sourceImage
                         source: sourceImage
+                        maskEnabled: true
                         maskSource: mask
                         visible: photo && sourceImage.status === Image.Ready
                     }

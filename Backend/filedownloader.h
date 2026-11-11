@@ -32,6 +32,21 @@ public:
     QString downloadStatus() const;
     QString downloadDirectory() const;
 
+    // ---- arXiv helpers -----------------------------------------------------
+    // Pure functions, public so they can be unit tested on their own.
+
+    /** @brief Extract an arXiv identifier (e.g. "2309.10311", "math/0309136") from a URL, or "" if not arXiv. */
+    static QString arxivIdFromUrl(const QString& url);
+
+    /** @brief Rewrite an arXiv abstract/landing URL into its direct PDF URL. */
+    static QString arxivPdfUrl(const QString& url, const QString& arxivId);
+
+    /** @brief Pull the first entry's <title> out of an arXiv Atom API response. */
+    static QString parseArxivTitle(const QByteArray& atomXml);
+
+    /** @brief Turn an arbitrary title into a filesystem-safe file name. */
+    static QString sanitizeFileName(const QString& name);
+
 public slots:
     void setDownloadLink(const QString& link);
     void setDownloadDirectory(const QString& directory);
@@ -74,18 +89,6 @@ private:
 
     /** @brief Ask the arXiv API for @p arxivId, then download using the paper title as filename. */
     void fetchArxivMetadata(const QString& link, const QString& arxivId);
-
-    /** @brief Extract an arXiv identifier (e.g. "2309.10311", "math/0309136") from a URL, or "" if not arXiv. */
-    static QString arxivIdFromUrl(const QString& url);
-
-    /** @brief Rewrite an arXiv abstract/landing URL into its direct PDF URL. */
-    static QString arxivPdfUrl(const QString& url, const QString& arxivId);
-
-    /** @brief Pull the first entry's <title> out of an arXiv Atom API response. */
-    static QString parseArxivTitle(const QByteArray& atomXml);
-
-    /** @brief Turn an arbitrary title into a filesystem-safe file name. */
-    static QString sanitizeFileName(const QString& name);
 };
 
 } // namespace project

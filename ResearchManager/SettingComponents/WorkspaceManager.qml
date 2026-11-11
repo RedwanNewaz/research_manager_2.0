@@ -33,12 +33,32 @@ Rectangle {
         }
     }
 
+    // Tells the user the rows can be reordered, and what the order means.
+    Rectangle {
+        id: priorityHint
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: 32
+        color: "#1f1f1f"
+
+        Text {
+            anchors.fill: parent
+            anchors.leftMargin: 10
+            verticalAlignment: Text.AlignVCenter
+            color: "#bbbbbb"
+            font.pixelSize: 13
+            elide: Text.ElideRight
+            text: "Drag a row up or down to set workspace priority - the top workspace is the one the home page opens with."
+        }
+    }
+
     // Header View
     HorizontalHeaderView {
         id: horizontalHeader
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.top: parent.top
+        anchors.top: priorityHint.bottom
         height: 40
         syncView: tableView
         clip: true

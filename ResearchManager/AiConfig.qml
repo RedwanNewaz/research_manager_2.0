@@ -3,7 +3,6 @@ import QtQuick.Controls
 
 import Qt.labs.folderlistmodel 2.15
 import QtQuick.Layouts 1.12
-import Qt5Compat.GraphicalEffects
 import QtQuick.Dialogs
 import QtCore
 

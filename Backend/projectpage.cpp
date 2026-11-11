@@ -1,4 +1,5 @@
 #include "projectpage.h"
+#include "categoryrepair.h"
 using namespace project;
 
 ProjectPage::ProjectPage(DbmPtr db, QObject *parent)
@@ -30,7 +31,9 @@ void ProjectPage::setProjectName(const QString &newProjectName)
 
     sqlCmd = QString("SELECT description FROM projects WHERE name = '%1'").arg(m_projectName);
 
-    QString description = db_->queryRow(sqlCmd).front();
+    // A project that is not in the database yet returns nothing here.
+    const QStringList descriptions = db_->queryRow(sqlCmd);
+    const QString description = descriptions.isEmpty() ? QString() : descriptions.constFirst();
     if(description.isEmpty())
         setProjectDescription(newProjectName);
     else
@@ -57,9 +60,10 @@ void ProjectPage::setProjectDescription(const QString &newProjectDescription)
     // db_->updateDB(sqlCmd);
 
     auto query = db_->getBinder("UPDATE projects SET description = :desc WHERE name = :name");
-    query.bindValue(":desc", m_projectName);
-    query.bindValue(":name", newProjectDescription);
-    query.exec();
+    query.bindValue(":desc", newProjectDescription);
+    query.bindValue(":name", m_projectName);
+    if (!query.exec())
+        qWarning() << "[ProjectPage] Failed to update description:" << query.lastError().text();
 
     m_projectDescription = newProjectDescription;
     emit projectDescriptionChanged();
@@ -112,28 +116,51 @@ void ProjectPage::setRootDir(const QString &root)
 void ProjectPage::setProjectInfo(const QStringList& pInfo)
 {
     qInfo() <<"[ProjectPage]: set project info " << pInfo;
-    auto projectName = pInfo[0];
-    auto cat = pInfo[1].toInt();
-    // QString sqlCmd = QString("INSERT INTO projects (name, description, category_id) VALUES ('%1', '%1', %2)")
-    //                 .arg(projectName)
-    //                 .arg(cat);
-    // db_->updateDB(sqlCmd);
+
+    if (pInfo.size() < 2) {
+        qWarning() << "[ProjectPage] Incomplete project info:" << pInfo;
+        return;
+    }
+
+    const QString projectName = pInfo.at(0);
+    const QString categoryName = pInfo.at(1);
 
     if(db_->initializeDatabase())
     {
         qInfo() << "[ProjectPage] initializing the database for this workspace";
     }
 
-    auto query = db_->getBinder("INSERT INTO projects (name, description, category_id) VALUES (:name, :desc, :cat)");
+    // Workspaces disagree on category ids - "Grants & Funding" is id 2 in one
+    // database and id 4 in another - so file the project by name and let the
+    // category be created here if this workspace does not have it yet.
+    const int cat = categoryrepair::resolveCategoryId(*db_, categoryName);
+    if (cat <= 0)
+        qWarning() << "[ProjectPage] Could not resolve category" << categoryName;
+
+    // Re-creating an existing project should re-file it, not add a second row.
+    auto existing = db_->getBinder("SELECT COUNT(*) FROM projects WHERE name = :name");
+    existing.bindValue(":name", projectName);
+    bool isKnown = false;
+    if (existing.exec() && existing.next())
+        isKnown = existing.value(0).toInt() > 0;
+
+    QSqlQuery query = isKnown
+        ? db_->getBinder("UPDATE projects SET category_id = :cat WHERE name = :name")
+        : db_->getBinder("INSERT INTO projects (name, description, category_id) "
+                         "VALUES (:name, :desc, :cat)");
+
     query.bindValue(":name", projectName);
-    query.bindValue(":desc", projectName);
+    if (!isKnown)
+        query.bindValue(":desc", projectName);
     query.bindValue(":cat", cat);
 
-    if (! query.exec()) {
+    if (!query.exec()) {
         qWarning() << "[ProjectPage] Error: Failed to execute query:" << query.lastError().text();
-
+        return;
     }
 
+    qInfo() << "[ProjectPage]" << (isKnown ? "re-filed" : "added") << projectName
+            << "under category" << categoryName << "(id" << cat << ")";
 }
 
 QString ProjectPage::projectRoot() const

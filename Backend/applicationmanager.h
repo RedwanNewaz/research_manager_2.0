@@ -90,6 +90,22 @@ public:
 public slots:
     QString browseForConfigDatabase();
 
+    /**
+     * @brief Remember which workspace folder the selected workspace uses.
+     *
+     * The folder is needed to work out which template a project was created
+     * from when repairing its category.
+     */
+    void rememberWorkspaceDir(const QString &workspaceDir);
+
+    /**
+     * @brief Bring a workspace's research database up to date once it is open.
+     *
+     * Makes sure the canonical categories exist and repairs projects whose
+     * category is missing or came from another workspace's numbering.
+     */
+    void prepareResearchDatabase(const QString &dbPath);
+
 private:
     // Initialization methods
     void setupEngine();
@@ -113,6 +129,9 @@ private:
     QQmlApplicationEngine *m_engine;
     QString m_appDir;
     SettingsManager *m_settingsManager;
+
+    /** @brief Workspace folder of the selected workspace, for category repair. */
+    QString m_workspaceDir;
 
     // Database managers
     std::shared_ptr<DatabaseManager> m_researchDb;

@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts
+import QtQuick.Dialogs
 
 Rectangle {
     id: rectangle
@@ -29,6 +30,22 @@ Rectangle {
             loops: Animation.Infinite
             NumberAnimation { to: 0.06; duration: 3000; easing.type: Easing.InOutSine }
             NumberAnimation { to: 0.03; duration: 3000; easing.type: Easing.InOutSine }
+        }
+    }
+
+    // Tells the user why a project could not be created, instead of the button
+    // appearing to do nothing.
+    MessageDialog {
+        id: createFailedDialog
+        title: "Cannot create project"
+        buttons: MessageDialog.Ok
+    }
+
+    Connections {
+        target: tpModel
+        function onProjectCreationFailed(reason) {
+            createFailedDialog.text = reason
+            createFailedDialog.open()
         }
     }
 
@@ -197,12 +214,17 @@ Rectangle {
                 Layout.preferredWidth: 150
                 Layout.preferredHeight: 100
                 onClicked: {
-                    if(createProjectText.text !== "")
-                    {
-                        console.log("[CreateProject]", createProjectText.text, combo.currentText)
-                        tpModel.createProject(createProjectText.text, combo.currentText)
+                    var newName = createProjectText.text.trim()
+                    console.log("[CreateProject]", newName, combo.currentText)
+
+                    // Only leave the home page once the project really exists;
+                    // failures are reported through projectCreationFailed.
+                    if (tpModel.createProject(newName, combo.currentText)) {
+                        createProjectText.text = ""
                         mainScreen.appCurrentPage = "RecentProjects.qml";
-                        project.projectName = createProjectText.text;
+                        project.projectName = newName;
+                        project.setRootDir(tpModel.WsPath + "/" + newName)
+                        project.setLinkText(tpModel.WsPath + "/" + newName)
                     }
                 }
             }

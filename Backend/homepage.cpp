@@ -1,4 +1,6 @@
 #include "homepage.h"
+#include "categoryrepair.h"
+#include <algorithm>
 #include <QDebug>
 
 namespace homepage{
@@ -30,33 +32,34 @@ int ProjectView::rowCount(const QModelIndex &parent) const
     for(int i =0; i < project_response.size(); i+=2)
     {
         int j = i + 1;
-        auto cat = catMap[project_response[j].toInt()];
+        auto cat = catMap.value(project_response[j].toInt());
+        // A project whose category_id points nowhere used to land in a group
+        // with no name at all, which read as a missing label on the page.
+        if (cat.trimmed().isEmpty())
+            cat = QStringLiteral("Uncategorized");
         data_[cat] << project_response[i];
     }
 
     // qInfo() << "Projects have following data \n" << data_;
+    // The groups are listed in this order, so sort them by name instead of
+    // leaving it to the order the container happened to hand back.
+    order_ = data_.keys();
+    std::sort(order_.begin(), order_.end(), [](const QString &a, const QString &b) {
+        const int byName = a.compare(b, Qt::CaseInsensitive);
+        return byName != 0 ? byName < 0 : a < b;
+    });
+
     return data_.size();
 }
 
     QVariant ProjectView::data(const QModelIndex &index, int role) const
     {
-        int row = index.row();
-        if (!index.isValid() || row > data_.size())
+        const int row = index.row();
+        if (!index.isValid() || row < 0 || row >= order_.size())
             return QVariant();
 
-
-        int i = 0;
-        QVariant folderName, category;
-        for(const auto& item: data_.keys())
-        {
-            if(i == row)
-            {
-                folderName = item;
-                category = data_.value(item);
-                break;
-            }
-            ++i;
-        }
+        const QString folderName = order_.at(row);
+        const QStringList category = data_.value(folderName);
 
         // qInfo() << "[FolderName]: " << folderName;
         switch (role) {
@@ -86,6 +89,68 @@ int ProjectView::rowCount(const QModelIndex &parent) const
             qInfo() << sqlCmd;
         }
 
+        emit layoutChanged();
+    }
+
+    QStringList ProjectView::availableCategories() const
+    {
+        QStringList names;
+        for (const QString &name : db_->queryRow("SELECT name FROM categories ORDER BY name")) {
+            if (!name.trimmed().isEmpty() && !names.contains(name, Qt::CaseInsensitive))
+                names << name;
+        }
+        return names;
+    }
+
+    QString ProjectView::categoryOfProject(const QString &projectName) const
+    {
+        auto query = db_->getBinder("SELECT c.name FROM projects p "
+                                    "LEFT JOIN categories c ON c.id = p.category_id "
+                                    "WHERE p.name = :name");
+        query.bindValue(":name", projectName);
+        if (query.exec() && query.next())
+            return query.value(0).toString();
+        return QString();
+    }
+
+    bool ProjectView::setProjectCategory(const QString &projectName, const QString &categoryName)
+    {
+        if (projectName.trimmed().isEmpty() || categoryName.trimmed().isEmpty()) {
+            qWarning() << "[ProjectView] setProjectCategory needs a project and a category";
+            return false;
+        }
+
+        const int categoryId = categoryrepair::resolveCategoryId(*db_, categoryName);
+        if (categoryId <= 0) {
+            qWarning() << "[ProjectView] Could not resolve category" << categoryName;
+            return false;
+        }
+
+        auto query = db_->getBinder("UPDATE projects SET category_id = :cat WHERE name = :name");
+        query.bindValue(":cat", categoryId);
+        query.bindValue(":name", projectName);
+        if (!query.exec()) {
+            qWarning() << "[ProjectView] Could not move" << projectName << ":"
+                       << query.lastError().text();
+            return false;
+        }
+
+        if (query.numRowsAffected() == 0) {
+            qWarning() << "[ProjectView] No project named" << projectName;
+            return false;
+        }
+
+        qInfo() << "[ProjectView] Moved" << projectName << "to" << categoryName
+                << "(id" << categoryId << ")";
+        reload();
+        return true;
+    }
+
+    void ProjectView::reload()
+    {
+        beginResetModel();
+        endResetModel();
+        updateProjectsList();
         emit layoutChanged();
     }
 

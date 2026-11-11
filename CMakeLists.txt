@@ -61,6 +61,8 @@ qt_add_executable(appResearchManager
     Backend/homepage.h
     Backend/homepage.cpp
     Backend/database.h
+    Backend/categoryrepair.h
+    Backend/categoryrepair.cpp
     Backend/filedownloader.h
     Backend/filedownloader.cpp
     Backend/contactsmodel.h
@@ -327,17 +329,6 @@ if(BUILD_TEST)
     endif()
 
     # ==============================================================================
-    # Installation
-    # ==============================================================================
-    include(GNUInstallDirs)
-
-    install(TARGETS appResearchManager
-        BUNDLE DESTINATION .
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    )
-
-    # ==============================================================================
     # Testing
     # ==============================================================================
     enable_testing()
@@ -345,3 +336,87 @@ if(BUILD_TEST)
     add_test(NAME NetworkManager COMMAND NetworkManagerTest)
     add_test(NAME DeadlineParser COMMAND DeadlineParserTest)
 endif()
+
+# ==============================================================================
+# Installation
+# ==============================================================================
+# Note: these rules are deliberately outside if(BUILD_TEST). They used to sit
+# inside it, which left a normal build with nothing to install or package.
+include(GNUInstallDirs)
+
+if(WIN32)
+    # Windows installs are self-contained: the executable, the Qt runtime and
+    # the QML modules all sit together in one folder.
+    set(RESEARCHMANAGER_RUNTIME_DESTINATION ".")
+else()
+    set(RESEARCHMANAGER_RUNTIME_DESTINATION ${CMAKE_INSTALL_BINDIR})
+endif()
+
+install(TARGETS appResearchManager
+    BUNDLE DESTINATION .
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${RESEARCHMANAGER_RUNTIME_DESTINATION}
+)
+
+# Qt's own runtime - DLLs, QML modules and plugins - worked out by windeployqt
+# at install time, so the installed copy runs without a Qt installation.
+if(WIN32)
+    # QT_DEPLOY_BIN_DIR defaults to "bin", which would leave the executable at
+    # the top of the install folder and every Qt DLL one directory below it,
+    # where the application cannot find them. Install rules share one scope at
+    # install time, so this reaches the generated deployment script below.
+    install(CODE "set(QT_DEPLOY_BIN_DIR \".\")")
+endif()
+
+if(NOT ANDROID AND NOT IOS)
+    qt_generate_deploy_qml_app_script(
+        TARGET appResearchManager
+        OUTPUT_SCRIPT researchmanager_deploy_script
+        NO_UNSUPPORTED_PLATFORM_ERROR
+    )
+    install(SCRIPT ${researchmanager_deploy_script})
+endif()
+
+# ==============================================================================
+# Packaging (cpack)
+# ==============================================================================
+set(CPACK_PACKAGE_NAME "Research Manager")
+set(CPACK_PACKAGE_VENDOR "AIRLab, University of New Orleans")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
+    "Manage research projects, workspaces, deadlines and references")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_INSTALL_DIRECTORY "Research Manager")
+set(CPACK_PACKAGE_CONTACT "https://github.com/RedwanNewaz/research_manager_2.0")
+set(CPACK_VERBATIM_VARIABLES ON)
+
+# Start menu entry, and the tick box for a desktop shortcut.
+set(CPACK_PACKAGE_EXECUTABLES "appResearchManager;Research Manager")
+set(CPACK_CREATE_DESKTOP_LINKS "appResearchManager")
+
+if(WIN32)
+    set(CPACK_GENERATOR "INNOSETUP;ZIP")
+    set(CPACK_PACKAGE_FILE_NAME "ResearchManager-${PROJECT_VERSION}-windows-x64")
+
+    set(CPACK_INNOSETUP_ICON_FILE
+        "${CMAKE_CURRENT_SOURCE_DIR}/ResearchManager/images/ResearchManager.ico")
+    set(CPACK_INNOSETUP_PROGRAM_MENU_FOLDER "Research Manager")
+    set(CPACK_INNOSETUP_ALLOW_CUSTOM_DIRECTORY ON)
+    set(CPACK_INNOSETUP_CREATE_UNINSTALL_LINK ON)
+
+    # {autopf} follows whatever privileges the install runs with, so the
+    # default is a per-user install with no UAC prompt, and a user who picks
+    # "all users" in the first dialog gets Program Files instead.
+    set(CPACK_INNOSETUP_INSTALL_ROOT "{autopf}")
+    set(CPACK_INNOSETUP_SETUP_PrivilegesRequired "lowest")
+    set(CPACK_INNOSETUP_SETUP_PrivilegesRequiredOverridesAllowed "dialog")
+    set(CPACK_INNOSETUP_SETUP_ArchitecturesInstallIn64BitMode "x64compatible")
+    set(CPACK_INNOSETUP_SETUP_ArchitecturesAllowed "x64compatible")
+    set(CPACK_INNOSETUP_SETUP_WizardStyle "modern")
+    set(CPACK_INNOSETUP_SETUP_AppPublisher "AIRLab, University of New Orleans")
+    # Note: do not set OutputBaseFilename here - CPack picks the output name
+    # itself and fails to find the installer if Inno Setup renames it.
+else()
+    set(CPACK_GENERATOR "TGZ")
+endif()
+
+include(CPack)

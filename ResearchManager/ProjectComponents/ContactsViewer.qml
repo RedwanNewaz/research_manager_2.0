@@ -1,7 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Window 2.15
 import QtQuick.Controls 2.15
-import Qt5Compat.GraphicalEffects
+import QtQuick.Effects
 
 
 
@@ -61,11 +61,15 @@ Rectangle{
                     anchors.fill: parent
                     radius: width / 2
                     visible: false // Hide the mask
+                    // MultiEffect needs a texture provider for the mask,
+                    // which a plain Rectangle only becomes once it is layered.
+                    layer.enabled: true
                 }
 
-                OpacityMask {
+                MultiEffect {
                     anchors.fill: sourceImage
                     source: sourceImage
+                    maskEnabled: true
                     maskSource: mask
                 }
                 Menu {

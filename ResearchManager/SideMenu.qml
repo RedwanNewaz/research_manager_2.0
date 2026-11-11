@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import Qt5Compat.GraphicalEffects
+import QtQuick.Effects
 
 Rectangle {
     id: root
@@ -22,15 +22,6 @@ Rectangle {
          // color: "#282828"
         z: 1
 
-        // Optional shadow effect
-        layer.enabled: true
-        layer.effect: DropShadow {
-            horizontalOffset: 2
-            verticalOffset: 0
-            radius: 8
-            samples: 16
-            color: "#20000000"
-        }
 
 
 
@@ -56,11 +47,15 @@ Rectangle {
                     sourceSize.width: 700
                     fillMode: Image.PreserveAspectFit
 
-                    ColorOverlay {
+                    MultiEffect {
                         anchors.fill: parent
                         source: parent
-                        color: homeMouseArea.containsMouse ? "#4A90E2" : "#808080"
-                        Behavior on color { ColorAnimation { duration: 200 } }
+                        // MultiEffect colorizes by luminance, so the icon has to
+                        // be lifted to white first or a black icon stays black.
+                        brightness: 1.0
+                        colorization: 1.0
+                        colorizationColor: homeMouseArea.containsMouse ? "#4A90E2" : "#808080"
+                        Behavior on colorizationColor { ColorAnimation { duration: 200 } }
                     }
 
                     MouseArea {
@@ -92,11 +87,15 @@ Rectangle {
                     sourceSize.width: 700
                     fillMode: Image.PreserveAspectFit
 
-                    ColorOverlay {
+                    MultiEffect {
                         anchors.fill: parent
                         source: parent
-                        color: contactMouseArea.containsMouse ? "#4A90E2" : "#808080"
-                        Behavior on color { ColorAnimation { duration: 200 } }
+                        // MultiEffect colorizes by luminance, so the icon has to
+                        // be lifted to white first or a black icon stays black.
+                        brightness: 1.0
+                        colorization: 1.0
+                        colorizationColor: contactMouseArea.containsMouse ? "#4A90E2" : "#808080"
+                        Behavior on colorizationColor { ColorAnimation { duration: 200 } }
                     }
 
                     MouseArea {
@@ -128,11 +127,15 @@ Rectangle {
                     sourceSize.width: 700
                     fillMode: Image.PreserveAspectFit
 
-                    ColorOverlay {
+                    MultiEffect {
                         anchors.fill: parent
                         source: parent
-                        color: aiMouseArea.containsMouse ? "#4A90E2" : "#808080"
-                        Behavior on color { ColorAnimation { duration: 200 } }
+                        // MultiEffect colorizes by luminance, so the icon has to
+                        // be lifted to white first or a black icon stays black.
+                        brightness: 1.0
+                        colorization: 1.0
+                        colorizationColor: aiMouseArea.containsMouse ? "#4A90E2" : "#808080"
+                        Behavior on colorizationColor { ColorAnimation { duration: 200 } }
                     }
 
                     MouseArea {
@@ -164,11 +167,15 @@ Rectangle {
                     sourceSize.width: 700
                     fillMode: Image.PreserveAspectFit
 
-                    ColorOverlay {
+                    MultiEffect {
                         anchors.fill: parent
                         source: parent
-                        color: recentMouseArea.containsMouse ? "#4A90E2" : "#808080"
-                        Behavior on color { ColorAnimation { duration: 200 } }
+                        // MultiEffect colorizes by luminance, so the icon has to
+                        // be lifted to white first or a black icon stays black.
+                        brightness: 1.0
+                        colorization: 1.0
+                        colorizationColor: recentMouseArea.containsMouse ? "#4A90E2" : "#808080"
+                        Behavior on colorizationColor { ColorAnimation { duration: 200 } }
                     }
 
                     MouseArea {
@@ -207,11 +214,15 @@ Rectangle {
                     sourceSize.width: 700
                     fillMode: Image.PreserveAspectFit
 
-                    ColorOverlay {
+                    MultiEffect {
                         anchors.fill: parent
                         source: parent
-                        color: settingsMouseArea.containsMouse ? "#4A90E2" : "#808080"
-                        Behavior on color { ColorAnimation { duration: 200 } }
+                        // MultiEffect colorizes by luminance, so the icon has to
+                        // be lifted to white first or a black icon stays black.
+                        brightness: 1.0
+                        colorization: 1.0
+                        colorizationColor: settingsMouseArea.containsMouse ? "#4A90E2" : "#808080"
+                        Behavior on colorizationColor { ColorAnimation { duration: 200 } }
                     }
 
                     MouseArea {
@@ -227,6 +238,22 @@ Rectangle {
                     }
                 }
             }
+        }
+    }
+
+    // The soft edge that used to come from DropShadow. A layer effect is
+    // clipped to the item it is applied to, so the shadow is drawn here
+    // instead, just outside the menu.
+    Rectangle {
+        anchors.left: sideMenu.right
+        anchors.top: sideMenu.top
+        width: 8
+        height: sideMenu.height
+        z: 1
+        gradient: Gradient {
+            orientation: Gradient.Horizontal
+            GradientStop { position: 0.0; color: "#20000000" }
+            GradientStop { position: 1.0; color: "#00000000" }
         }
     }
 }
