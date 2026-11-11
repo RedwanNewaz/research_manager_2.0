@@ -24,7 +24,9 @@ env:
 jobs:
   build-windows:
     runs-on: windows-latest
-    continue-on-error: true
+    # NOT continue-on-error: the installer is the point of this job, so a
+    # failure here has to fail the run instead of publishing a release
+    # without it.
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -60,6 +62,47 @@ jobs:
       - name: Package installer and portable archive
         run: cpack --config build/CPackConfig.cmake -B build
         shell: pwsh
+
+      # A named .exe is not proof of a working installer, so check that the
+      # Qt runtime actually went into it before anything is published.
+      - name: Verify the installer and portable archive
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem build/ResearchManager-*-windows-x64.exe -ErrorAction SilentlyContinue
+          $zip = Get-ChildItem build/ResearchManager-*-windows-x64.zip -ErrorAction SilentlyContinue
+          if (-not $exe) { throw 'cpack produced no installer' }
+          if (-not $zip) { throw 'cpack produced no portable archive' }
+          foreach ($f in @($exe[0], $zip[0])) {
+            $mb = [math]::Round($f.Length / 1MB, 1)
+            Write-Host "$($f.Name) - $mb MB"
+            if ($f.Length -lt 10MB) {
+              throw "$($f.Name) is only $mb MB - the Qt runtime is missing from it"
+            }
+          }
+
+      # Install it the way a user would. This is what catches a
+      # QT_DEPLOY_BIN_DIR regression, where the executable installs to the
+      # root and every Qt DLL one directory below it, so the app cannot start.
+      - name: Smoke-test the installer
+        shell: pwsh
+        run: |
+          $exe = (Get-ChildItem build/ResearchManager-*-windows-x64.exe)[0].FullName
+          $dir = Join-Path $env:RUNNER_TEMP 'installtest'
+          Start-Process -FilePath $exe -Wait -ArgumentList `
+            '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$dir"
+          foreach ($need in 'appResearchManager.exe','Qt6Core.dll','Qt6Quick.dll') {
+            if (-not (Test-Path (Join-Path $dir $need))) {
+              Write-Host "installed tree:"
+              Get-ChildItem $dir -Recurse -Depth 1 | Select-Object -First 60 -ExpandProperty FullName
+              throw "$need is not beside the installed executable"
+            }
+          }
+          Write-Host 'Installed layout is correct.'
+          $uninstaller = Join-Path $dir 'unins000.exe'
+          if (Test-Path $uninstaller) {
+            Start-Process -FilePath $uninstaller -Wait `
+              -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART'
+          }
 
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
@@ -299,7 +342,9 @@ jobs:
   create-release:
     needs: [build-windows, build-macos, build-android]
     runs-on: ubuntu-latest
-    if: always() && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
+    # always() lets a macOS or Android failure through, but a release
+    # without the Windows installer is not worth publishing.
+    if: always() && needs.build-windows.result == 'success' && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
     permissions:
       contents: write
     steps:
@@ -357,7 +402,10 @@ jobs:
             
             #### Build System
             - Updated CMakeLists.txt for better Qt 6.10.1 compatibility
-            - Added Qt5Compat, QtPdf, QtShaderTools support
+            - Dropped the Qt5Compat dependency; graphical effects now use
+              QtQuick.Effects
+            - Windows installer built with CPack + Inno Setup, smoke-tested
+              in CI before release
             - Fixed macOS Info.plist configuration for proper app launching
             
             ---
